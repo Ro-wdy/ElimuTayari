@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.db import create_db_engine, create_session_factory
+from app.llm_client import StubLlmClient
 from app.main import create_app
 from app.sms_client import RecordingSmsClient
 
@@ -70,10 +71,21 @@ def sms_outbox() -> RecordingSmsClient:
 
 
 @pytest.fixture
+def llm_stub() -> StubLlmClient:
+    """Records Claude prompts and replays canned replies; never calls the API."""
+    return StubLlmClient()
+
+
+@pytest.fixture
 def client(
-    migrated_database_url: str, sms_outbox: RecordingSmsClient
+    migrated_database_url: str,
+    sms_outbox: RecordingSmsClient,
+    llm_stub: StubLlmClient,
 ) -> Iterator[TestClient]:
-    """A TestClient backed by the migrated throwaway database and a recorded outbox."""
-    app = create_app(database_url=migrated_database_url, sms_client=sms_outbox)
+    """A TestClient backed by the migrated throwaway database, a recorded SMS
+    outbox, and a stubbed Claude client."""
+    app = create_app(
+        database_url=migrated_database_url, sms_client=sms_outbox, llm_client=llm_stub
+    )
     with TestClient(app) as test_client:
         yield test_client
