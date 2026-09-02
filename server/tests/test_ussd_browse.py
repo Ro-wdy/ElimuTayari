@@ -132,3 +132,27 @@ def test_direct_code_entry_at_home_screen_selects_the_substrand(
     assert [t.substrand_code for t in teaching] == ["M-ALG-02"]
     assert sms_outbox.sent, "pack should be sent for direct code entry"
     assert "M-ALG-02" in sms_outbox.sent[-1][1]
+
+
+def test_invalid_input_at_home_re_prompts_instead_of_ending(seeded_client):
+    body = dial(seeded_client, "9")
+
+    assert body.startswith("CON ")
+    assert "Invalid" in body
+    assert "1. Mathematics" in body
+
+
+def test_invalid_choice_deeper_in_the_menu_re_prompts_the_same_screen(seeded_client):
+    body = dial(seeded_client, "1*7")
+
+    assert body.startswith("CON ")
+    assert "Invalid" in body
+    assert "1. Algebra" in body  # still on the strands screen
+
+
+def test_session_recovers_after_an_invalid_input(seeded_client):
+    body = dial(seeded_client, "9*1")  # bad key, then Mathematics
+
+    assert body.startswith("CON ")
+    assert "Invalid" not in body
+    assert "1. Algebra" in body
