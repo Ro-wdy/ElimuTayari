@@ -188,17 +188,20 @@ def _student_questions_for(session: Session, substrand_code: str) -> list[str]:
 def _render_hotspot(
     session: Session, llm: LlmClient, stats: HotspotStats, rank: int
 ) -> list[str]:
+    question_word = (
+        "student question" if stats.student_questions == 1 else "student questions"
+    )
     session_word = (
         "teaching session" if stats.teaching_sessions == 1 else "teaching sessions"
     )
     if stats.questions_per_session is None:
         headline = (
-            f"{stats.student_questions} student questions but no recorded "
+            f"{stats.student_questions} {question_word} but no recorded "
             f"teaching sessions - ratio undefined, listed for attention"
         )
     else:
         headline = (
-            f"{stats.student_questions} student questions over "
+            f"{stats.student_questions} {question_word} over "
             f"{stats.teaching_sessions} {session_word} - "
             f"{stats.questions_per_session:.1f} questions/session"
         )
