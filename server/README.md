@@ -24,11 +24,29 @@ development and Postgres in production.
 
 ```bash
 .venv/Scripts/python.exe -m alembic upgrade head   # create/update the schema
-.venv/Scripts/python.exe -m app.seed               # load placeholder Maths content
+.venv/Scripts/python.exe -m app.wiki_seed          # load reviewed wiki content
+.venv/Scripts/python.exe -m app.seed               # or: placeholder Maths content
 ```
 
-The seed is idempotent: it matches rows on their natural keys and refreshes them,
-so it is safe to run on every deploy.
+Both seeds are idempotent and safe to run on every deploy. `app.wiki_seed` is
+the real one: it loads the Markdown wiki (`../wiki/`) into `substrands` and
+`content_units`, driven by each learning area's `graph.json` manifest and the
+page frontmatter.
+
+- **Review gate** — only pages whose frontmatter `status` is `reviewed` are
+  loaded. Anything else (today the whole wiki is `draft-human-review`) is
+  excluded; `--include-drafts` loads unreviewed pages anyway for development
+  and sandbox testing.
+- **Re-runnable** — an edited page is stored as a new `content_units` version
+  (serving picks the highest); an unedited wiki re-seeds as a no-op.
+- **Mirror semantics** — sub-strands no longer servable (page removed, demoted
+  below the gate, or left over from the placeholder seeder) are deleted, which
+  removes them from the USSD menus. Note this means a gated seed of an
+  all-draft wiki empties the served content: that is the review gate doing its
+  job, and the CLI prints the `--include-drafts` hint when it happens.
+
+`app.seed` keeps its placeholder role for tests and for bootstrapping before
+wiki content lands.
 
 ## Run
 
