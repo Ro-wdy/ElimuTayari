@@ -111,7 +111,9 @@ def home_screen(
 ) -> Screen:
     lines = ["Welcome to ElimuTayari"]
     if cont is None:
-        lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
+        areas = learning_areas(db)
+        lines += [f"{i}. {area}" for i, area in enumerate(areas, start=1)]
+        lines.append(f"{len(areas) + 1}. Get a test")
         lines.append("Or enter a sub-strand code e.g. M-ALG-02")
         return Screen(tuple(lines), invalid=invalid)
     lines.append(f"1. Continue: {cont.title}")
@@ -119,6 +121,7 @@ def home_screen(
     lines += [f"{i}. {area}" for i, area in enumerate(areas, start=2)]
     lines.append(f"{len(areas) + 2}. My coverage")
     lines.append(f"{len(areas) + 3}. Upload questions")
+    lines.append(f"{len(areas) + 4}. Get a test")
     return Screen(tuple(lines), invalid=invalid)
 
 
