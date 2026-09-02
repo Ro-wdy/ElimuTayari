@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.db import create_db_engine, create_session_factory
 
-from app.models import ContentUnit, Substrand
+from app.models import ContentUnit, Question, Substrand, Teacher
 from app.seed import seed_placeholder_content
 from app.wiki_seed import WikiPage, load_wiki, main, parse_page, seed_wiki_content
 
@@ -234,6 +234,39 @@ def test_removing_a_page_from_the_wiki_removes_it_from_serving(session: Session)
 
     assert session.get(Substrand, "M-TST-02") is None
     assert count(session, Substrand) == 1
+
+
+def test_stale_substrand_with_teacher_data_is_retained_not_cascaded(session: Session):
+    """Pruning must never erase what teachers sent: a demoted sub-strand with
+    questions or teaching sessions survives the seed (still serving its last
+    content), because deleting it would ON DELETE CASCADE those rows away."""
+    seed_wiki_content(
+        session,
+        [wiki_page(code="M-TST-01"), wiki_page(code="M-TST-02")],
+    )
+    session.add(Teacher(phone="+254700000009"))
+    session.add(
+        Question(
+            teacher_phone="+254700000009",
+            substrand_code="M-TST-02",
+            text="Why does the sign flip?",
+            source="student",
+        )
+    )
+    session.flush()
+
+    result = seed_wiki_content(session, [wiki_page(code="M-TST-01")])
+
+    assert result.substrands_removed == 0
+    assert result.substrands_retained == 1
+    assert session.get(Substrand, "M-TST-02") is not None
+    assert count(session, Question) == 1
+    # Data-less stale rows still prune: the gate is the data, not the demotion.
+    session.query(Question).delete()
+    session.flush()
+    rerun = seed_wiki_content(session, [wiki_page(code="M-TST-01")])
+    assert rerun.substrands_removed == 1
+    assert session.get(Substrand, "M-TST-02") is None
 
 
 def test_wiki_seed_replaces_placeholder_content_without_duplicating(session: Session):

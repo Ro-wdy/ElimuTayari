@@ -26,7 +26,7 @@ from pathlib import Path
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app.models import ContentUnit, Substrand
+from app.models import ContentUnit, Question, Substrand, TeachingSession
 
 REVIEWED_STATUS = "reviewed"
 
@@ -180,6 +180,7 @@ class WikiSeedResult:
     substrands_created: int = 0
     substrands_updated: int = 0
     substrands_removed: int = 0
+    substrands_retained: int = 0
     content_units_created: int = 0
     content_units_unchanged: int = 0
     pages_excluded: int = 0
@@ -210,6 +211,12 @@ def seed_wiki_content(
     code is no longer servable - a page removed, demoted below the review gate,
     or left over from the placeholder seeder - is deleted, which removes it from
     the USSD menus and (via ON DELETE CASCADE) drops its content units.
+
+    Exception: a stale sub-strand with recorded questions or teaching sessions
+    is RETAINED, not deleted - deleting it would cascade those rows away, and a
+    page demoted for revision (or a habitual run without --include-drafts while
+    the wiki is still all drafts) must never erase what teachers already sent.
+    A retained sub-strand keeps serving its last content until the page returns.
     """
     servable: list[WikiPage] = []
     excluded = unservable = 0
@@ -246,12 +253,28 @@ def seed_wiki_content(
     stale = session.scalars(
         select(Substrand.code).where(Substrand.code.not_in(servable_codes))
     ).all()
-    if stale:
+    with_data = set(
+        session.scalars(
+            select(Question.substrand_code)
+            .where(Question.substrand_code.in_(stale))
+            .distinct()
+        )
+    ) | set(
+        session.scalars(
+            select(TeachingSession.substrand_code)
+            .where(TeachingSession.substrand_code.in_(stale))
+            .distinct()
+        )
+    )
+    prunable = [code for code in stale if code not in with_data]
+    if prunable:
         # A core DELETE so the database's ON DELETE rules apply (content units
-        # cascade away; a teacher's last_substrand is set NULL).
-        session.execute(delete(Substrand).where(Substrand.code.in_(stale)))
+        # cascade away; a teacher's last_substrand is set NULL). Only rows with
+        # no questions and no teaching sessions reach this delete.
+        session.execute(delete(Substrand).where(Substrand.code.in_(prunable)))
         session.expire_all()
-    removed = len(stale)
+    removed = len(prunable)
+    retained = len(stale) - removed
 
     units_created = units_unchanged = 0
     for page in servable:
@@ -283,6 +306,7 @@ def seed_wiki_content(
         substrands_created=created,
         substrands_updated=updated,
         substrands_removed=removed,
+        substrands_retained=retained,
         content_units_created=units_created,
         content_units_unchanged=units_unchanged,
         pages_excluded=excluded,
@@ -336,7 +360,8 @@ def main(argv: list[str] | None = None) -> None:
         f"Seeded wiki from {args.wiki_root}: "
         f"{result.substrands_created} sub-strands created, "
         f"{result.substrands_updated} updated, "
-        f"{result.substrands_removed} removed; "
+        f"{result.substrands_removed} removed, "
+        f"{result.substrands_retained} retained (teacher data recorded); "
         f"{result.content_units_created} content units created, "
         f"{result.content_units_unchanged} unchanged; "
         f"{result.pages_excluded} pages excluded (not {REVIEWED_STATUS}), "
