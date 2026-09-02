@@ -19,6 +19,13 @@ need):
 Sub-strand codes (e.g. `M-ALG-02`) are the shared identifier across wiki pages, DB rows,
 USSD navigation, and SMS commands.
 
+## Configuration
+
+Secrets live in `.env` (gitignored); `.env.example` documents the variables. Development
+uses the Africa's Talking **sandbox** app: `AFRICASTALKING_USERNAME=sandbox`, API key from
+the AT dashboard. Test USSD/SMS flows against the AT sandbox simulator. Claude API calls
+use `ANTHROPIC_API_KEY`. Never hardcode credentials or commit `.env`.
+
 ## Working standard
 
 The engineering skills in `.claude/skills/` are the standard for how work happens in this
