@@ -106,3 +106,22 @@ def test_browse_still_works_for_a_returning_teacher_with_shifted_numbers(
     assert "M-NUM-01" in body
     codes = [t.substrand_code for t in session.scalars(select(TeachingSession))]
     assert codes == ["M-ALG-02", "M-NUM-01"]
+
+
+def test_coverage_counts_distinct_taught_substrands(seeded_client):
+    teach(seeded_client, "1*1*2", session_id="ATUid_1")  # M-ALG-02
+    teach(seeded_client, "1", session_id="ATUid_2")  # M-ALG-02 again
+    teach(seeded_client, "2*5*1", session_id="ATUid_3")  # M-NUM-01
+
+    body = dial(seeded_client, "3", session_id="ATUid_4")
+
+    assert body == "END You have taught 2 of 15 Mathematics sub-strands."
+
+
+def test_coverage_counts_another_teachers_sessions_separately(seeded_client):
+    teach(seeded_client, "1*1*2", session_id="ATUid_1")  # PHONE: M-ALG-02
+    dial(seeded_client, "m-num-01", session_id="ATUid_2", phone="+254700000001")
+
+    body = dial(seeded_client, "3", session_id="ATUid_3")
+
+    assert body == "END You have taught 1 of 15 Mathematics sub-strands."

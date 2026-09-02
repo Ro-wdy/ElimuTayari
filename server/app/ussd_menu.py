@@ -33,10 +33,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Substrand, Teacher
+from app.models import Substrand, Teacher, TeachingSession
 
 MAX_SCREEN_CHARS = 160
 
@@ -45,15 +45,16 @@ INVALID_LINE = "Invalid choice."
 
 @dataclass(frozen=True)
 class Screen:
-    """A CON reply: the menu lines to show, re-prompting if the last input
-    was invalid."""
+    """A menu reply: CON to keep the session open (re-prompting if the last
+    input was invalid), or END for a terminal information screen."""
 
     lines: tuple[str, ...]
     invalid: bool = False
+    end: bool = False
 
     def render(self) -> str:
         lines = (INVALID_LINE, *self.lines) if self.invalid else self.lines
-        return "CON " + "\n".join(lines)
+        return ("END " if self.end else "CON ") + "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -138,6 +139,28 @@ def substrands_screen(
     return Screen(tuple(lines), invalid=invalid)
 
 
+def coverage_screen(db: Session, phone: str) -> Screen:
+    """Taught-so-far progress: distinct sub-strands from teaching_sessions
+    against the seeded total, one line per learning area."""
+    lines = []
+    for area in learning_areas(db):
+        taught = db.scalar(
+            select(func.count(func.distinct(TeachingSession.substrand_code)))
+            .join(Substrand, Substrand.code == TeachingSession.substrand_code)
+            .where(
+                TeachingSession.teacher_phone == phone,
+                Substrand.learning_area == area,
+            )
+        )
+        total = db.scalar(
+            select(func.count())
+            .select_from(Substrand)
+            .where(Substrand.learning_area == area)
+        )
+        lines.append(f"You have taught {taught} of {total} {area} sub-strands.")
+    return Screen(tuple(lines), end=True)
+
+
 def _pick(options: list[str], token: str) -> str | None:
     """The option a numeric menu token selects, or None if out of range."""
     if token.isdigit() and 1 <= int(token) <= len(options):
@@ -170,7 +193,7 @@ def navigate(db: Session, text: str, phone: str = "") -> Screen | Selection:
     tokens = [t.strip() for t in text.split("*") if t.strip()]
     for token in tokens:
         invalid = not _apply(db, state, token, cont)
-    return _screen_for(db, state, invalid, cont)
+    return _screen_for(db, state, invalid, cont, phone)
 
 
 def _apply_returning_home(
@@ -230,10 +253,12 @@ def _apply(db: Session, state: _State, token: str, cont: Substrand | None) -> bo
 
 
 def _screen_for(
-    db: Session, state: _State, invalid: bool, cont: Substrand | None
+    db: Session, state: _State, invalid: bool, cont: Substrand | None, phone: str
 ) -> Screen | Selection:
     if state.selected is not None:
         return Selection(state.selected)
+    if state.info == "coverage":
+        return coverage_screen(db, phone)
     if state.learning_area is None:
         return home_screen(db, cont=cont, invalid=invalid)
     if state.strand is None:
