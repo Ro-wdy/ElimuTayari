@@ -52,3 +52,14 @@ def test_home_screen_lists_learning_areas_and_invites_code_entry(seeded_client):
     assert body.startswith("CON ")
     assert "1. Mathematics" in body
     assert "code" in body.lower()
+
+
+def test_choosing_mathematics_lists_its_strands(seeded_client):
+    body = dial(seeded_client, "1")
+
+    assert body.startswith("CON ")
+    assert "1. Algebra" in body
+    assert "2. Data Handling and Probability" in body
+    assert "3. Geometry" in body
+    assert "4. Measurements" in body
+    assert "5. Numbers" in body

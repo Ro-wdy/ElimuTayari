@@ -66,6 +66,17 @@ def learning_areas(db: Session) -> list[str]:
     )
 
 
+def strands(db: Session, learning_area: str) -> list[str]:
+    return list(
+        db.scalars(
+            select(Substrand.strand)
+            .where(Substrand.learning_area == learning_area)
+            .distinct()
+            .order_by(Substrand.strand)
+        )
+    )
+
+
 def home_screen(db: Session, invalid: bool = False) -> Screen:
     lines = ["Welcome to ElimuTayari"]
     lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
@@ -73,6 +84,54 @@ def home_screen(db: Session, invalid: bool = False) -> Screen:
     return Screen(tuple(lines), invalid=invalid)
 
 
+def strands_screen(db: Session, learning_area: str, invalid: bool = False) -> Screen:
+    lines = [f"{learning_area} strands"]
+    lines += [f"{i}. {s}" for i, s in enumerate(strands(db, learning_area), start=1)]
+    return Screen(tuple(lines), invalid=invalid)
+
+
+def _pick(options: list[str], token: str) -> str | None:
+    """The option a numeric menu token selects, or None if out of range."""
+    if token.isdigit() and 1 <= int(token) <= len(options):
+        return options[int(token) - 1]
+    return None
+
+
+@dataclass
+class _State:
+    """Where the replayed tokens have navigated to so far."""
+
+    learning_area: str | None = None
+
+
 def navigate(db: Session, text: str) -> Screen | Selection:
-    """Replay the accumulated USSD text into the current screen or selection."""
-    return home_screen(db)
+    """Replay the accumulated USSD text into the current screen or selection.
+
+    Each request re-derives the caller's position from the full text, one
+    token at a time. A token that matches nothing is skipped with the invalid
+    flag set, so the caller is re-prompted on the same screen and their next
+    input still lands where they expect.
+    """
+    state = _State()
+    invalid = False
+    tokens = [t.strip() for t in text.split("*") if t.strip()]
+    for token in tokens:
+        invalid = not _apply(db, state, token)
+    return _screen_for(db, state, invalid)
+
+
+def _apply(db: Session, state: _State, token: str) -> bool:
+    """Advance state by one token; False if the token matched nothing."""
+    if state.learning_area is None:
+        area = _pick(learning_areas(db), token)
+        if area is not None:
+            state.learning_area = area
+            return True
+        return False
+    return False
+
+
+def _screen_for(db: Session, state: _State, invalid: bool) -> Screen:
+    if state.learning_area is None:
+        return home_screen(db, invalid=invalid)
+    return strands_screen(db, state.learning_area, invalid=invalid)
