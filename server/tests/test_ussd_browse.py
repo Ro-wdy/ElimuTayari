@@ -166,7 +166,8 @@ def test_every_screen_fits_within_the_ussd_character_limit(seeded_client):
     for strand_index in range(1, 6):
         texts.append(f"1*{strand_index}")  # each sub-strands screen
         texts.append(f"1*{strand_index}*9")  # ...and its re-prompt
-        texts.append(f"1*{strand_index}*1")  # each END screen
+        for substrand_index in range(1, 4):
+            texts.append(f"1*{strand_index}*{substrand_index}")  # each END screen
 
     for text in texts:
         body = dial(seeded_client, text, session_id=f"ATUid_{text or 'root'}")
