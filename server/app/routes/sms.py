@@ -26,7 +26,6 @@ from app.models import ContentUnit, Question, Substrand, Teacher
 from app.question_answer import compose_answer
 from app.sms_client import SmsClient
 from app.sms_commands import FORMAT_HELP, UNKNOWN_CODE_HELP, parse_upload
-from app.sms_pack import split_pack
 
 router = APIRouter()
 
@@ -88,9 +87,12 @@ def inbound_sms(
             ),
         )
     else:
-        body = ANSWERED_CONFIRMATION.format(code=substrand.code, answer=answer)
-        for part in split_pack(body, substrand.code):
-            sms_client.send(sender, part)
+        # One send, not a manual split: Africa's Talking concatenates long
+        # SMS into a single message on the phone, which reads far better for
+        # a conversational answer than numbered parts.
+        sms_client.send(
+            sender, ANSWERED_CONFIRMATION.format(code=substrand.code, answer=answer)
+        )
     return {"status": "accepted"}
 
 

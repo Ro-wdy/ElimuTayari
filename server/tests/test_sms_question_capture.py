@@ -112,9 +112,12 @@ def test_student_question_reply_carries_a_grounded_answer(
     _, prompt = llm_stub.calls[0]
     assert "Why does a negative exponent give a fraction?" in prompt
     assert "M-ALG-02" in prompt
-    joined = "\n".join(message for _, message in sms_outbox.sent)
-    assert "A negative exponent means divide: 2^-1 is 1/2." in joined
-    assert all(len(message) <= 160 for _, message in sms_outbox.sent)
+    # One long SMS, not manually split parts: the gateway concatenates long
+    # messages, so the teacher sees a single bubble with the whole answer.
+    assert len(sms_outbox.sent) == 1
+    message = sms_outbox.sent[0][1]
+    assert "A negative exponent means divide: 2^-1 is 1/2." in message
+    assert "1/" not in message.split("\n")[0]  # no part numbering
 
 
 def test_teacher_test_item_gets_plain_confirmation_and_no_llm_call(
