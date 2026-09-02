@@ -85,7 +85,8 @@ def generate_test(
 ) -> list[str] | None:
     """One Claude call; the parsed questions, or None on error or garbage."""
     try:
-        reply = llm_client.complete(SYSTEM, build_prompt(substrand, guidance, questions))
+        prompt = build_prompt(substrand, guidance, questions)
+        reply = llm_client.complete(SYSTEM, prompt)
     except Exception:
         return None
     return parse_reply(reply)

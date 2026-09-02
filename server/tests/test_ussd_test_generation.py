@@ -202,3 +202,117 @@ def test_selecting_a_substrand_sends_the_generated_test_and_stores_it(
     assert stored[0].substrand_codes == [CODE]
     assert stored[0].items_json == {"questions": FIVE_QUESTIONS}
     assert stored[0].sent_at is not None
+
+
+def test_prompt_carries_guidance_and_the_labelled_question_bank(
+    make_client, migrated_database_url
+):
+    seed_rows(migrated_database_url, *bank_rows())
+    stub = StubLlmClient(replies=[json.dumps(FIVE_QUESTIONS)])
+    client = make_client(stub)
+
+    dial(client, "2*1*1*2")
+
+    assert len(stub.calls) == 1
+    system, prompt = stub.calls[0]
+    assert "Grade 10" in system
+    assert CODE in prompt
+    assert "Formulae and Variations" in prompt
+    assert GUIDANCE in prompt
+    assert "[student] Why do we flip the inequality sign?" in prompt
+    assert "[teacher] Make x the subject of y = 3x + 2." in prompt
+    assert "JSON array" in prompt
+    assert "5" in prompt
+
+
+def test_empty_question_bank_still_generates_from_guidance_alone(
+    make_client, migrated_database_url, sms_outbox
+):
+    seed_rows(
+        migrated_database_url,
+        ContentUnit(substrand_code=CODE, kind="guidance", body=GUIDANCE, version=1),
+    )
+    stub = StubLlmClient(replies=[json.dumps(FIVE_QUESTIONS)])
+    client = make_client(stub)
+
+    body = dial(client, "2*1*1*2")
+
+    assert body.startswith("END ")
+    assert "your test is on its way by SMS" in body
+    assert len(stub.calls) == 1
+    _, prompt = stub.calls[0]
+    assert GUIDANCE in prompt
+    assert "empty" in prompt
+    assert "learning outcomes alone" in prompt
+    assert sms_outbox.sent, "the test should still be delivered by SMS"
+    joined = "\n".join(message for _, message in sms_outbox.sent)
+    assert FIVE_QUESTIONS[0] in joined
+
+
+def test_substrand_with_no_guidance_and_no_questions_ends_with_an_explanation(
+    seeded_client, llm_stub, sms_outbox, session
+):
+    # Placeholder seeding creates sms_pack units only: no guidance, no bank.
+    body = dial(seeded_client, "2*1*1*2")
+
+    assert body.startswith("END ")
+    assert CODE in body
+    assert "on its way" not in body
+    assert "Q M-ALG-02 <question>" in body
+    assert len(body) <= 160
+    assert llm_stub.calls == []
+    assert sms_outbox.sent == []
+    assert session.scalars(select(GeneratedTest)).all() == []
+
+
+def test_malformed_claude_reply_degrades_to_an_apologetic_sms(
+    make_client, migrated_database_url, sms_outbox, session
+):
+    seed_rows(migrated_database_url, *bank_rows())
+    stub = StubLlmClient(replies=["Here are some questions!\n1. What is x?"])
+    client = make_client(stub)
+
+    body = dial(client, "2*1*1*2")
+
+    assert body.startswith("END "), "a bad reply must not drop the session"
+    assert len(sms_outbox.sent) == 1
+    to, message = sms_outbox.sent[0]
+    assert to == PHONE
+    assert "Sorry" in message
+    assert len(message) <= 160
+    assert session.scalars(select(GeneratedTest)).all() == []
+
+
+class ExplodingLlmClient:
+    """LlmClient double whose one call fails like a network/API error."""
+
+    def complete(self, system: str, prompt: str, max_tokens: int = 16000) -> str:
+        raise RuntimeError("api unreachable")
+
+
+def test_claude_api_error_degrades_to_an_apologetic_sms(
+    make_client, migrated_database_url, sms_outbox, session
+):
+    seed_rows(migrated_database_url, *bank_rows())
+    client = make_client(ExplodingLlmClient())
+
+    body = dial(client, "2*1*1*2")
+
+    assert body.startswith("END "), "an API error must not drop the session"
+    assert len(sms_outbox.sent) == 1
+    assert "Sorry" in sms_outbox.sent[0][1]
+    assert session.scalars(select(GeneratedTest)).all() == []
+
+
+def test_code_fenced_reply_is_still_parsed(
+    make_client, migrated_database_url, sms_outbox
+):
+    fenced = "```json\n" + json.dumps(FIVE_QUESTIONS) + "\n```"
+    seed_rows(migrated_database_url, *bank_rows())
+    client = make_client(StubLlmClient(replies=[fenced]))
+
+    dial(client, "2*1*1*2")
+
+    joined = "\n".join(message for _, message in sms_outbox.sent)
+    assert FIVE_QUESTIONS[0] in joined
+    assert "```" not in joined

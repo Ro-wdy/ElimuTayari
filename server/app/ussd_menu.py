@@ -21,12 +21,16 @@ Constraints honoured here:
   that leads with "1. Continue: <last sub-strand>" and appends "My coverage"
   and "Upload questions"; the extra lines are paid for by dropping the code
   hint, which the returning teacher has already seen (and every pack SMS ends
-  with its code). A first-time caller's home screen is unchanged.
+  with its code). A first-time caller's home screen is unchanged;
+- both home screens end with "Get a test": choosing it flips the replayed
+  state into test mode, which reuses the same area/strand/sub-strand
+  navigation but resolves a pick to a TestSelection instead of a Selection.
 
-Navigation resolves to either a Screen (rendered as a CON reply) or a
-Selection (the route records the teaching session, sends the pack and replies
-END): the side effects stay in the route, keeping this module read-only
-against the database.
+Navigation resolves to a Screen (rendered as a CON reply), a Selection (the
+route records the teaching session, sends the pack and replies END), or a
+TestSelection (the route generates and sends the test, then replies END):
+the side effects stay in the route, keeping this module read-only against
+the database.
 """
 
 from __future__ import annotations
@@ -209,7 +213,9 @@ class _State:
     mode: str = "pack"  # "pack" | "test": what selecting a sub-strand means
 
 
-def navigate(db: Session, text: str, phone: str = "") -> Screen | Selection | TestSelection:
+def navigate(
+    db: Session, text: str, phone: str = ""
+) -> Screen | Selection | TestSelection:
     """Replay the accumulated USSD text into the current screen or selection.
 
     Each request re-derives the caller's position from the full text, one

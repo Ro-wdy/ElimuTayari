@@ -92,7 +92,9 @@ def _complete_test_selection(
     guidance = _latest_guidance(db, code)
     questions = list(
         db.scalars(
-            select(Question).where(Question.substrand_code == code).order_by(Question.id)
+            select(Question)
+            .where(Question.substrand_code == code)
+            .order_by(Question.id)
         )
     )
     if guidance is None and not questions:
