@@ -161,6 +161,18 @@ def coverage_screen(db: Session, phone: str) -> Screen:
     return Screen(tuple(lines), end=True)
 
 
+def upload_screen() -> Screen:
+    """The post-class prompt: how to upload student questions, ending with the
+    SMS format so the teacher never has to memorise it."""
+    return Screen(
+        (
+            "After class, SMS your students' questions to this same shortcode.",
+            "Format: Q <code> <question>",
+        ),
+        end=True,
+    )
+
+
 def _pick(options: list[str], token: str) -> str | None:
     """The option a numeric menu token selects, or None if out of range."""
     if token.isdigit() and 1 <= int(token) <= len(options):
@@ -259,6 +271,8 @@ def _screen_for(
         return Selection(state.selected)
     if state.info == "coverage":
         return coverage_screen(db, phone)
+    if state.info == "upload":
+        return upload_screen()
     if state.learning_area is None:
         return home_screen(db, cont=cont, invalid=invalid)
     if state.strand is None:

@@ -125,3 +125,37 @@ def test_coverage_counts_another_teachers_sessions_separately(seeded_client):
     body = dial(seeded_client, "3", session_id="ATUid_3")
 
     assert body == "END You have taught 1 of 15 Mathematics sub-strands."
+
+
+def test_post_class_prompt_quotes_the_question_upload_sms_format(seeded_client):
+    teach(seeded_client)  # a taught session makes the next dial-in offer upload
+
+    body = dial(seeded_client, "4", session_id="ATUid_2")
+
+    assert body.startswith("END ")
+    assert "SMS" in body
+    assert "shortcode" in body
+    assert body.endswith("Q <code> <question>")
+
+
+def test_invalid_choice_on_returning_home_re_prompts_with_continue(seeded_client):
+    teach(seeded_client)
+
+    body = dial(seeded_client, "5", session_id="ATUid_2")
+
+    assert body.startswith("CON ")
+    assert "Invalid" in body
+    assert "1. Continue: Formulae and Variations" in body
+
+
+def test_direct_code_entry_still_works_for_a_returning_teacher(
+    seeded_client, session
+):
+    teach(seeded_client)  # M-ALG-02
+
+    body = dial(seeded_client, "M-DAT-03", session_id="ATUid_2")
+
+    assert body.startswith("END ")
+    assert "M-DAT-03" in body
+    codes = [t.substrand_code for t in session.scalars(select(TeachingSession))]
+    assert codes == ["M-ALG-02", "M-DAT-03"]
