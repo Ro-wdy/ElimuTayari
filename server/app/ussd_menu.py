@@ -2,9 +2,10 @@
 
 Africa's Talking gives the callback no per-session storage: the whole history
 of the caller's inputs arrives on every request as one accumulated text field
-("1*2*1"). The menu is therefore a pure function of that text plus the
-database - each request replays the tokens from the home screen forward, so
-no server-side session state exists to lose.
+("1*2*1"). The menu is therefore a pure function of that text, the caller's
+phone number (also on every request), and the database - each request replays
+the tokens from the home screen forward, so no server-side session state
+exists to lose.
 
 Constraints honoured here:
 
@@ -15,7 +16,12 @@ Constraints honoured here:
 - menu entries come from the substrands table (seeded from the wiki), never
   from hardcoded lists;
 - a sub-strand code (e.g. M-ALG-02, case-insensitive) typed at the home
-  screen jumps straight to that sub-strand.
+  screen jumps straight to that sub-strand;
+- a returning teacher (a teachers row with last_substrand) gets a home screen
+  that leads with "1. Continue: <last sub-strand>" and appends "My coverage"
+  and "Upload questions"; the extra lines are paid for by dropping the code
+  hint, which the returning teacher has already seen (and every pack SMS ends
+  with its code). A first-time caller's home screen is unchanged.
 
 Navigation resolves to either a Screen (rendered as a CON reply) or a
 Selection (the route records the teaching session, sends the pack and replies
@@ -27,10 +33,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Substrand
+from app.models import Substrand, Teacher, TeachingSession
 
 MAX_SCREEN_CHARS = 160
 
@@ -39,15 +45,16 @@ INVALID_LINE = "Invalid choice."
 
 @dataclass(frozen=True)
 class Screen:
-    """A CON reply: the menu lines to show, re-prompting if the last input
-    was invalid."""
+    """A menu reply: CON to keep the session open (re-prompting if the last
+    input was invalid), or END for a terminal information screen."""
 
     lines: tuple[str, ...]
     invalid: bool = False
+    end: bool = False
 
     def render(self) -> str:
         lines = (INVALID_LINE, *self.lines) if self.invalid else self.lines
-        return "CON " + "\n".join(lines)
+        return ("END " if self.end else "CON ") + "\n".join(lines)
 
 
 @dataclass(frozen=True)
@@ -89,10 +96,29 @@ def substrands(db: Session, learning_area: str, strand: str) -> list[Substrand]:
     )
 
 
-def home_screen(db: Session, invalid: bool = False) -> Screen:
+def continue_substrand(db: Session, phone: str) -> Substrand | None:
+    """The sub-strand the caller taught last, or None for a first-time caller."""
+    if not phone:
+        return None
+    teacher = db.get(Teacher, phone)
+    if teacher is None or teacher.last_substrand is None:
+        return None
+    return db.get(Substrand, teacher.last_substrand)
+
+
+def home_screen(
+    db: Session, cont: Substrand | None = None, invalid: bool = False
+) -> Screen:
     lines = ["Welcome to ElimuTayari"]
-    lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
-    lines.append("Or enter a sub-strand code e.g. M-ALG-02")
+    if cont is None:
+        lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
+        lines.append("Or enter a sub-strand code e.g. M-ALG-02")
+        return Screen(tuple(lines), invalid=invalid)
+    lines.append(f"1. Continue: {cont.title}")
+    areas = learning_areas(db)
+    lines += [f"{i}. {area}" for i, area in enumerate(areas, start=2)]
+    lines.append(f"{len(areas) + 2}. My coverage")
+    lines.append(f"{len(areas) + 3}. Upload questions")
     return Screen(tuple(lines), invalid=invalid)
 
 
@@ -113,6 +139,40 @@ def substrands_screen(
     return Screen(tuple(lines), invalid=invalid)
 
 
+def coverage_screen(db: Session, phone: str) -> Screen:
+    """Taught-so-far progress: distinct sub-strands from teaching_sessions
+    against the seeded total, one line per learning area."""
+    lines = []
+    for area in learning_areas(db):
+        taught = db.scalar(
+            select(func.count(func.distinct(TeachingSession.substrand_code)))
+            .join(Substrand, Substrand.code == TeachingSession.substrand_code)
+            .where(
+                TeachingSession.teacher_phone == phone,
+                Substrand.learning_area == area,
+            )
+        )
+        total = db.scalar(
+            select(func.count())
+            .select_from(Substrand)
+            .where(Substrand.learning_area == area)
+        )
+        lines.append(f"You have taught {taught} of {total} {area} sub-strands.")
+    return Screen(tuple(lines), end=True)
+
+
+def upload_screen() -> Screen:
+    """The post-class prompt: how to upload student questions, ending with the
+    SMS format so the teacher never has to memorise it."""
+    return Screen(
+        (
+            "After class, SMS your students' questions to this same shortcode.",
+            "Format: Q <code> <question>",
+        ),
+        end=True,
+    )
+
+
 def _pick(options: list[str], token: str) -> str | None:
     """The option a numeric menu token selects, or None if out of range."""
     if token.isdigit() and 1 <= int(token) <= len(options):
@@ -127,27 +187,59 @@ class _State:
     learning_area: str | None = None
     strand: str | None = None
     selected: Substrand | None = None
+    info: str | None = None  # "coverage" | "upload": terminal info screens
 
 
-def navigate(db: Session, text: str) -> Screen | Selection:
+def navigate(db: Session, text: str, phone: str = "") -> Screen | Selection:
     """Replay the accumulated USSD text into the current screen or selection.
 
     Each request re-derives the caller's position from the full text, one
     token at a time. A token that matches nothing is skipped with the invalid
     flag set, so the caller is re-prompted on the same screen and their next
-    input still lands where they expect.
+    input still lands where they expect. The phone number picks the home
+    screen variant: a returning teacher gets Continue/coverage/upload options.
     """
+    cont = continue_substrand(db, phone)
     state = _State()
     invalid = False
     tokens = [t.strip() for t in text.split("*") if t.strip()]
     for token in tokens:
-        invalid = not _apply(db, state, token)
-    return _screen_for(db, state, invalid)
+        invalid = not _apply(db, state, token, cont)
+    return _screen_for(db, state, invalid, cont, phone)
 
 
-def _apply(db: Session, state: _State, token: str) -> bool:
+def _apply_returning_home(
+    db: Session, state: _State, token: str, cont: Substrand
+) -> bool:
+    """One token on the returning-teacher home screen: 1 continues the last
+    sub-strand, learning areas shift down one, then coverage and upload."""
+    if token == "1":
+        state.selected = cont
+        return True
+    areas = learning_areas(db)
+    if token.isdigit() and 2 <= int(token) <= len(areas) + 1:
+        state.learning_area = areas[int(token) - 2]
+        return True
+    if token == str(len(areas) + 2):
+        state.info = "coverage"
+        return True
+    if token == str(len(areas) + 3):
+        state.info = "upload"
+        return True
+    direct = db.get(Substrand, token.upper())
+    if direct is not None:
+        state.selected = direct
+        return True
+    return False
+
+
+def _apply(db: Session, state: _State, token: str, cont: Substrand | None) -> bool:
     """Advance state by one token; False if the token matched nothing."""
+    if state.selected is not None or state.info is not None:
+        return False
     if state.learning_area is None:
+        if cont is not None:
+            return _apply_returning_home(db, state, token, cont)
         area = _pick(learning_areas(db), token)
         if area is not None:
             state.learning_area = area
@@ -172,11 +264,17 @@ def _apply(db: Session, state: _State, token: str) -> bool:
     return False
 
 
-def _screen_for(db: Session, state: _State, invalid: bool) -> Screen | Selection:
+def _screen_for(
+    db: Session, state: _State, invalid: bool, cont: Substrand | None, phone: str
+) -> Screen | Selection:
     if state.selected is not None:
         return Selection(state.selected)
+    if state.info == "coverage":
+        return coverage_screen(db, phone)
+    if state.info == "upload":
+        return upload_screen()
     if state.learning_area is None:
-        return home_screen(db, invalid=invalid)
+        return home_screen(db, cont=cont, invalid=invalid)
     if state.strand is None:
         return strands_screen(db, state.learning_area, invalid=invalid)
     return substrands_screen(db, state.learning_area, state.strand, invalid=invalid)
