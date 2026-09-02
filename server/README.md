@@ -48,6 +48,18 @@ USSD and SMS are stubs at this stage; tickets #2 and #3 give them real behaviour
 .venv/Scripts/python.exe -m pytest
 ```
 
+Test databases are built by running the real Alembic migrations, not
+`Base.metadata.create_all`, so the schema under test is the one that ships.
+
+Postgres compatibility is checked without a server by rendering the migration
+as static SQL for the Postgres dialect and asserting on the types it produces.
+The one test that needs a live database is skipped unless `POSTGRES_TEST_URL`
+is set:
+
+```bash
+POSTGRES_TEST_URL=postgresql+psycopg://user:password@localhost:5432/elimutayari_test   .venv/Scripts/python.exe -m pytest
+```
+
 ## Schema
 
 | Table | Purpose |
