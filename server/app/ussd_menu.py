@@ -77,6 +77,18 @@ def strands(db: Session, learning_area: str) -> list[str]:
     )
 
 
+def substrands(db: Session, learning_area: str, strand: str) -> list[Substrand]:
+    return list(
+        db.scalars(
+            select(Substrand)
+            .where(
+                Substrand.learning_area == learning_area, Substrand.strand == strand
+            )
+            .order_by(Substrand.code)
+        )
+    )
+
+
 def home_screen(db: Session, invalid: bool = False) -> Screen:
     lines = ["Welcome to ElimuTayari"]
     lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
@@ -87,6 +99,17 @@ def home_screen(db: Session, invalid: bool = False) -> Screen:
 def strands_screen(db: Session, learning_area: str, invalid: bool = False) -> Screen:
     lines = [f"{learning_area} strands"]
     lines += [f"{i}. {s}" for i, s in enumerate(strands(db, learning_area), start=1)]
+    return Screen(tuple(lines), invalid=invalid)
+
+
+def substrands_screen(
+    db: Session, learning_area: str, strand: str, invalid: bool = False
+) -> Screen:
+    lines = [strand]
+    lines += [
+        f"{i}. {s.title}"
+        for i, s in enumerate(substrands(db, learning_area, strand), start=1)
+    ]
     return Screen(tuple(lines), invalid=invalid)
 
 
@@ -102,6 +125,7 @@ class _State:
     """Where the replayed tokens have navigated to so far."""
 
     learning_area: str | None = None
+    strand: str | None = None
 
 
 def navigate(db: Session, text: str) -> Screen | Selection:
@@ -128,10 +152,18 @@ def _apply(db: Session, state: _State, token: str) -> bool:
             state.learning_area = area
             return True
         return False
+    if state.strand is None:
+        strand = _pick(strands(db, state.learning_area), token)
+        if strand is not None:
+            state.strand = strand
+            return True
+        return False
     return False
 
 
 def _screen_for(db: Session, state: _State, invalid: bool) -> Screen:
     if state.learning_area is None:
         return home_screen(db, invalid=invalid)
-    return strands_screen(db, state.learning_area, invalid=invalid)
+    if state.strand is None:
+        return strands_screen(db, state.learning_area, invalid=invalid)
+    return substrands_screen(db, state.learning_area, state.strand, invalid=invalid)

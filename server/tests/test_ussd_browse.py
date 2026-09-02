@@ -63,3 +63,12 @@ def test_choosing_mathematics_lists_its_strands(seeded_client):
     assert "3. Geometry" in body
     assert "4. Measurements" in body
     assert "5. Numbers" in body
+
+
+def test_choosing_a_strand_lists_its_substrands(seeded_client):
+    body = dial(seeded_client, "1*1")  # Mathematics -> Algebra
+
+    assert body.startswith("CON ")
+    assert "1. Matrices" in body
+    assert "2. Formulae and Variations" in body
+    assert "3. Quadratic Equations and Expressions" in body
