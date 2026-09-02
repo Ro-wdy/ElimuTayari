@@ -32,7 +32,7 @@ def ussd_callback(
     db: Session = Depends(get_session),
     sms_client: SmsClient = Depends(get_sms_client),
 ) -> str:
-    outcome = navigate(db, text)
+    outcome = navigate(db, text, phone_number)
     if isinstance(outcome, Selection):
         return _complete_selection(db, sms_client, phone_number, outcome.substrand)
     return outcome.render()

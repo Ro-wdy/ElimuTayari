@@ -113,7 +113,9 @@ def test_second_selection_updates_last_substrand_without_duplicate_teacher(
     seeded_client, session
 ):
     dial(seeded_client, "1*1*2", session_id="ATUid_1")
-    dial(seeded_client, "1*5*1", session_id="ATUid_2")  # Numbers -> M-NUM-01
+    # The second dial is a returning teacher (issue #4): Continue takes slot 1,
+    # so Mathematics is option 2.
+    dial(seeded_client, "2*5*1", session_id="ATUid_2")  # Numbers -> M-NUM-01
 
     teachers = session.scalars(select(Teacher)).all()
     assert len(teachers) == 1
