@@ -95,6 +95,20 @@ def test_selecting_a_substrand_ends_session_and_records_teaching(
     assert teacher.last_substrand == "M-ALG-02"
 
 
+def test_selection_sends_the_teaching_pack_by_sms(seeded_client, sms_outbox):
+    dial(seeded_client, "1*1*2")  # M-ALG-02
+
+    assert len(sms_outbox.sent) >= 2
+    recipients = {to for to, _ in sms_outbox.sent}
+    assert recipients == {PHONE}
+    messages = [message for _, message in sms_outbox.sent]
+    assert all(len(message) <= 160 for message in messages)
+    assert "M-ALG-02" in messages[-1]
+    joined = " ".join(messages)
+    assert "Formulae and Variations" in joined
+    assert "Outcome" in joined
+
+
 def test_second_selection_updates_last_substrand_without_duplicate_teacher(
     seeded_client, session
 ):
