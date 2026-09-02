@@ -72,3 +72,38 @@ def test_returning_home_offers_get_a_test_after_the_teacher_options(seeded_clien
     assert "3. My coverage" in body
     assert "4. Upload questions" in body
     assert "5. Get a test" in body
+
+
+def test_get_a_test_reuses_the_area_strand_substrand_navigation(seeded_client):
+    body = dial(seeded_client, "2")
+    assert body.startswith("CON ")
+    assert "Invalid" not in body
+    assert "Get a test" in body
+    assert "1. Mathematics" in body
+
+    body = dial(seeded_client, "2*1")
+    assert body.startswith("CON ")
+    assert "Invalid" not in body
+    assert "1. Algebra" in body
+
+    body = dial(seeded_client, "2*1*1")
+    assert body.startswith("CON ")
+    assert "Invalid" not in body
+    assert "2. Formulae and Variations" in body
+
+
+def test_get_a_test_navigation_works_from_the_returning_home(seeded_client):
+    teach(seeded_client)
+
+    body = dial(seeded_client, "5", session_id="ATUid_2")
+    assert body.startswith("CON ")
+    assert "Get a test" in body
+    assert "1. Mathematics" in body
+
+
+def test_invalid_choice_on_the_test_area_screen_re_prompts(seeded_client):
+    body = dial(seeded_client, "2*9")
+
+    assert body.startswith("CON ")
+    assert "Invalid" in body
+    assert "1. Mathematics" in body
