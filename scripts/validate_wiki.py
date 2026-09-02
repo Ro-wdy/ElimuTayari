@@ -14,7 +14,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SUBSTRANDS = ROOT / "wiki" / "grade-10" / "core-mathematics" / "sub-strands"
+SUBJECT_ROOT = ROOT / "wiki" / "grade-10" / "core-mathematics"
+STRANDS = SUBJECT_ROOT / "strands"
+SUBSTRANDS = SUBJECT_ROOT / "sub-strands"
 GRAPH_PATH = ROOT / "wiki" / "grade-10" / "core-mathematics" / "graph.json"
 
 REQUIRED_HEADINGS = (
@@ -25,9 +27,11 @@ REQUIRED_HEADINGS = (
     "## SMS teaching pack",
     "## Review notes",
 )
+STRAND_REQUIRED_HEADINGS = ("## Strand focus", "## Sub-strands", "## Teacher use", "## Review notes")
 LOCAL_LINK = re.compile(r"\[[^\]]+\]\((?!https?://|#)([^)]+)\)")
 FRONTMATTER = re.compile(r"\A---\n(.*?)\n---\n", re.DOTALL)
 ID_LINE = re.compile(r"^id:\s*(\S+)\s*$", re.MULTILINE)
+TYPE_LINE = re.compile(r"^type:\s*(\S+)\s*$", re.MULTILINE)
 CURRICULUM_LINE = re.compile(r"^curriculum_ref:\s*(\S+)\s*$", re.MULTILINE)
 STRAND_LINE = re.compile(r"^strand_id:\s*(\S+)\s*$", re.MULTILINE)
 
@@ -60,6 +64,16 @@ def main() -> int:
     sub_nodes = [node for node in nodes if node.get("type") == "sub-strand"]
     if len(sub_nodes) != 14:
         fail(f"expected 14 sub-strand nodes, found {len(sub_nodes)}", errors)
+
+    strand_nodes = [node for node in nodes if node.get("type") == "strand"]
+    if len(strand_nodes) != 3:
+        fail(f"expected 3 strand nodes, found {len(strand_nodes)}", errors)
+    for node in strand_nodes:
+        path = node.get("path")
+        if not path:
+            fail(f"strand node {node.get('id')} is missing a teacher-facing path", errors)
+        elif not (SUBJECT_ROOT / path).exists():
+            fail(f"strand node {node.get('id')} has a missing path: {path}", errors)
 
     for edge in graph.get("edges", []):
         if edge.get("from") not in node_by_id:
@@ -111,6 +125,55 @@ def main() -> int:
             target_path = (page.parent / clean_target).resolve()
             if not target_path.exists():
                 fail(f"{page}: broken local link {target}", errors)
+
+    strand_page_ids: set[str] = set()
+    strand_pages = sorted(STRANDS.glob("M-*.md"))
+    if len(strand_pages) != 3:
+        fail(f"expected 3 strand pages, found {len(strand_pages)}", errors)
+
+    for page in strand_pages:
+        text = page.read_text(encoding="utf-8")
+        match = FRONTMATTER.match(text)
+        if not match:
+            fail(f"{page}: missing YAML frontmatter", errors)
+            continue
+        metadata = match.group(1)
+        page_id_match = ID_LINE.search(metadata)
+        type_match = TYPE_LINE.search(metadata)
+        curriculum_match = CURRICULUM_LINE.search(metadata)
+        page_id = page_id_match.group(1) if page_id_match else None
+        if not page_id:
+            fail(f"{page}: missing id", errors)
+            continue
+        if page_id in strand_page_ids:
+            fail(f"duplicate strand page id: {page_id}", errors)
+        strand_page_ids.add(page_id)
+        node = node_by_id.get(page_id)
+        if not node or node.get("type") != "strand":
+            fail(f"{page}: id {page_id} is not a strand node in graph", errors)
+        elif node.get("path") != str(page.relative_to(SUBJECT_ROOT)):
+            fail(f"{page}: graph path does not match page location", errors)
+        if not type_match or type_match.group(1) != "strand":
+            fail(f"{page}: metadata type must be strand", errors)
+        if not curriculum_match:
+            fail(f"{page}: missing curriculum_ref", errors)
+        for heading in STRAND_REQUIRED_HEADINGS:
+            if heading not in text:
+                fail(f"{page}: missing required section {heading}", errors)
+        for target in LOCAL_LINK.findall(text):
+            clean_target = target.split("#", 1)[0]
+            target_path = (page.parent / clean_target).resolve()
+            if not target_path.exists():
+                fail(f"{page}: broken local link {target}", errors)
+
+    graph_strand_ids = {node.get("id") for node in strand_nodes}
+    if strand_page_ids != graph_strand_ids:
+        fail(
+            "strand page IDs and graph strand IDs differ: "
+            f"pages-only={sorted(strand_page_ids - graph_strand_ids)}, "
+            f"graph-only={sorted(graph_strand_ids - strand_page_ids)}",
+            errors,
+        )
 
     graph_page_ids = {node.get("id") for node in sub_nodes}
     if page_ids != graph_page_ids:

@@ -15,14 +15,16 @@ official design or a signed-off adaptation for learners with hearing impairment.
 ## Retrieval contract
 
 1. Start at the learning-area hub: `grade-10/core-mathematics/README.md`.
-2. Use `graph.json` for relationships, stable IDs, and file paths.
-3. Retrieve one sub-strand page at a time. Do not merge outcomes from neighbouring
+2. Use the strand page for a teacher-facing lookup; display the official curriculum
+   reference and title before the internal `M-*` alias.
+3. Use `graph.json` for relationships, stable IDs, and file paths.
+4. Retrieve one sub-strand page at a time. Do not merge outcomes from neighbouring
    sub-strands unless the graph marks the relationship.
-4. Treat the `Curriculum alignment` section as the curriculum-derived layer. Treat
+5. Treat the `Curriculum alignment` section as the curriculum-derived layer. Treat
    `Teacher pack`, examples, misconceptions, and SMS text as ElimuTayari-authored support.
-5. Preserve the `M-*` identifier in teacher packs, test-generation requests, SMS commands,
+6. Preserve the `M-*` identifier in teacher packs, test-generation requests, SMS commands,
    and analytics events.
-6. If a page conflicts with a newer KICD design, prefer the newer official design and
+7. If a page conflicts with a newer KICD design, prefer the newer official design and
    record the change in the page's `Review notes` section before editing the graph.
 
 ## Page contract
