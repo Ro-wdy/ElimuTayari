@@ -60,6 +60,27 @@ is set:
 POSTGRES_TEST_URL=postgresql+psycopg://user:password@localhost:5432/elimutayari_test   .venv/Scripts/python.exe -m pytest
 ```
 
+## Confusion-hotspot digest
+
+A Markdown digest of where students are confused, for revising wiki pages:
+sub-strands ranked by student questions per teaching session (not raw counts),
+with each hotspot's questions clustered into named themes by Claude. Needs
+`ANTHROPIC_API_KEY` in `.env`.
+
+```bash
+.venv/Scripts/python.exe -m app.analytics                       # default: ../reports/confusion-digest.md
+.venv/Scripts/python.exe -m app.analytics --out weekly.md       # custom path
+```
+
+The report defaults to `reports/confusion-digest.md` at the repo root and is
+rewritten in place on every run, so re-running is safe; the file is not
+gitignored, so the maintainer can commit a digest to keep history. There is no
+scheduler dependency - for a weekly run, add a cron line on the host:
+
+```cron
+0 6 * * 1 cd /path/to/ElimuTayari/server && .venv/bin/python -m app.analytics
+```
+
 ## Schema
 
 | Table | Purpose |
