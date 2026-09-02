@@ -22,9 +22,9 @@ from app.sms_commands import FORMAT_HELP, UNKNOWN_CODE_HELP, parse_upload
 
 router = APIRouter()
 
-CONFIRMATION = "Saved: {source} question for {code} {title}. Send more anytime."
+CONFIRMATION = "Saved: {what} for {code} {title}. Send more anytime."
 
-SOURCE_LABELS = {"student": "student", "teacher": "test-item"}
+SOURCE_LABELS = {"student": "student question", "teacher": "test item"}
 
 
 @router.post("/sms/inbound")
@@ -65,7 +65,7 @@ def inbound_sms(
     sms_client.send(
         sender,
         CONFIRMATION.format(
-            source=SOURCE_LABELS[upload.source],
+            what=SOURCE_LABELS[upload.source],
             code=substrand.code,
             title=substrand.title,
         ),
