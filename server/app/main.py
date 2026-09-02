@@ -26,7 +26,9 @@ def create_app(
         settings.database_url = database_url
     if sms_client is None:
         sms_client = AfricasTalkingSmsClient(
-            settings.africastalking_username, settings.africastalking_api_key
+            settings.africastalking_username,
+            settings.africastalking_api_key,
+            settings.africastalking_sender_id,
         )
     if llm_client is None:
         llm_client = AnthropicLlmClient(settings.anthropic_api_key)

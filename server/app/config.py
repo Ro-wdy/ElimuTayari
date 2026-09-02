@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     database_url: str = f"sqlite+pysqlite:///{DEFAULT_SQLITE_PATH}"
     africastalking_username: str = "sandbox"
     africastalking_api_key: str = ""
+    africastalking_sender_id: str = ""  # alphanumeric SMS sender ID, e.g. "Elimu"
     anthropic_api_key: str = ""
 
 

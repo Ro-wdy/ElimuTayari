@@ -16,9 +16,10 @@ class SmsClient(Protocol):
 
 
 class AfricasTalkingSmsClient:
-    def __init__(self, username: str, api_key: str) -> None:
+    def __init__(self, username: str, api_key: str, sender_id: str = "") -> None:
         self._username = username
         self._api_key = api_key
+        self._sender_id = sender_id or None  # AT SDK wants None, not ""
         self._sms = None
 
     def send(self, to: str, message: str) -> None:
@@ -27,7 +28,7 @@ class AfricasTalkingSmsClient:
 
             africastalking.initialize(self._username, self._api_key)
             self._sms = africastalking.SMS
-        self._sms.send(message, [to])
+        self._sms.send(message, [to], self._sender_id)
 
 
 class RecordingSmsClient:
