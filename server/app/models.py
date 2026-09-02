@@ -100,7 +100,7 @@ class Teacher(Base):
     teaching_sessions: Mapped[list["TeachingSession"]] = relationship(
         back_populates="teacher"
     )
-    tests: Mapped[list["Test"]] = relationship(back_populates="teacher")
+    tests: Mapped[list["GeneratedTest"]] = relationship(back_populates="teacher")
 
 
 class ContentUnit(Base):
@@ -176,8 +176,11 @@ class Question(Base):
     substrand: Mapped["Substrand"] = relationship(back_populates="questions")
 
 
-class Test(Base):
+class GeneratedTest(Base):
     """A generated test sent to a teacher.
+
+    Named GeneratedTest rather than Test so pytest does not try to collect the
+    model as a test class; the table is still "tests".
 
     Spans one or more sub-strands, so substrand_codes is a JSON list rather than
     a single foreign key; items_json holds the generated items as produced.

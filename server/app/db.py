@@ -1,8 +1,8 @@
 """Engine and session construction.
 
-SQLite ignores foreign keys unless asked not to, which would let development
-accept rows Postgres rejects in production. The pragma below closes that gap so
-the two backends enforce the same schema.
+SQLite does not enforce foreign keys unless asked to, which would let
+development accept rows Postgres rejects in production. The pragma below closes
+that gap so the two backends enforce the same schema.
 """
 
 from collections.abc import Iterator
@@ -15,7 +15,6 @@ def create_db_engine(database_url: str) -> Engine:
     is_sqlite = database_url.startswith("sqlite")
     engine = create_engine(
         database_url,
-        future=True,
         connect_args={"check_same_thread": False} if is_sqlite else {},
     )
     if is_sqlite:
