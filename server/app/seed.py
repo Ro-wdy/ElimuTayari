@@ -3,7 +3,9 @@
 Downstream tickets need sub-strand codes and one SMS pack per code to work
 against before the real wiki exists. The titles and codes here follow the KICD
 Grade 10 Mathematics strands so the codes are stable, but every body is
-placeholder text: ticket #6 generates real content and ticket #7 seeds it.
+placeholder text. The real wiki is seeded by app.wiki_seed (ticket #7), which
+replaces these placeholder rows; this module remains for tests and for
+bootstrapping an environment before wiki content is available.
 
 Seeding is idempotent - it is run on every deploy and by tests - so rows are
 matched on their natural keys (substrands.code, and the
