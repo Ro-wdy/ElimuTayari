@@ -14,7 +14,7 @@ migrated throwaway SQLite file from conftest.
 import json
 from datetime import datetime, timezone
 
-from app.analytics import cluster_questions, compute_hotspots
+from app.analytics import cluster_questions, compute_hotspots, write_digest
 from app.llm_client import StubLlmClient
 from app.models import Question, Substrand, Teacher, TeachingSession
 
@@ -248,3 +248,105 @@ def test_out_of_range_question_indexes_are_ignored():
 
     assert result.raw_reply is None
     assert result.themes[0].questions == [SIGN_QUESTIONS[0]]
+
+
+def seed_two_hotspots_and_one_unrated(session) -> None:
+    seed_teacher(session)
+    seed_substrand(session, "M-ALG-01", "Matrices")
+    seed_substrand(session, "M-ALG-02", "Formulae and Variations")
+    seed_substrand(session, "M-NUM-01", "Indices and Logarithms")
+    session.flush()
+    # M-ALG-02: 3 questions / 1 session = 3.0 -> hottest.
+    seed_activity(session, "M-ALG-02", sessions=1, question_texts=SIGN_QUESTIONS)
+    # M-ALG-01: 2 questions / 2 sessions = 1.0.
+    seed_activity(
+        session,
+        "M-ALG-01",
+        sessions=2,
+        question_texts=["What is a determinant?", "Why can't I divide matrices?"],
+    )
+    # M-NUM-01: questions but no recorded session -> unrated.
+    seed_activity(
+        session, "M-NUM-01", question_texts=["What is a logarithm even for?"]
+    )
+    session.flush()
+
+
+def test_digest_file_ranks_hotspots_and_names_themes(session, tmp_path):
+    seed_two_hotspots_and_one_unrated(session)
+    llm = StubLlmClient(
+        replies=[
+            CANNED_CLUSTERS,
+            json.dumps(
+                [{"theme": "Matrix operations", "question_indexes": [1, 2]}]
+            ),
+            json.dumps(
+                [{"theme": "Purpose of logarithms", "question_indexes": [1]}]
+            ),
+        ]
+    )
+    out_path = tmp_path / "reports" / "confusion-digest.md"
+
+    written = write_digest(session, llm, out_path)
+
+    assert written == out_path
+    text = out_path.read_text(encoding="utf-8")
+    # Ranked by ratio: M-ALG-02 (3.0) before M-ALG-01 (1.0).
+    assert text.index("M-ALG-02") < text.index("M-ALG-01")
+    assert "3 student questions over 1 teaching session" in text
+    assert "3.0 questions/session" in text
+    assert "Sign changes with negatives" in text
+    assert SIGN_QUESTIONS[0] in text
+    assert "Matrix operations" in text
+    # The unrated sub-strand is surfaced, not ranked or dropped.
+    assert "M-NUM-01" in text
+    assert "no recorded teaching sessions" in text
+    assert "Purpose of logarithms" in text
+
+
+def test_digest_with_no_questions_says_so_and_never_calls_claude(session, tmp_path):
+    seed_teacher(session)
+    seed_substrand(session, "M-ALG-01", "Matrices")
+    session.flush()
+    seed_activity(session, "M-ALG-01", sessions=2)
+    session.flush()
+    llm = StubLlmClient()
+    out_path = tmp_path / "confusion-digest.md"
+
+    write_digest(session, llm, out_path)
+
+    text = out_path.read_text(encoding="utf-8")
+    assert "No student questions" in text
+    assert llm.calls == []
+
+
+def test_digest_includes_raw_reply_when_clustering_is_unparseable(
+    session, tmp_path
+):
+    seed_teacher(session)
+    seed_substrand(session, "M-ALG-02", "Formulae and Variations")
+    session.flush()
+    seed_activity(session, "M-ALG-02", sessions=1, question_texts=SIGN_QUESTIONS)
+    session.flush()
+    llm = StubLlmClient(replies=["Mostly sign confusion, I'd say."])
+    out_path = tmp_path / "confusion-digest.md"
+
+    write_digest(session, llm, out_path)
+
+    text = out_path.read_text(encoding="utf-8")
+    assert "could not be parsed" in text
+    assert "Mostly sign confusion, I'd say." in text
+
+
+def test_digest_is_rerunnable_and_overwrites_in_place(session, tmp_path):
+    seed_two_hotspots_and_one_unrated(session)
+    llm = StubLlmClient(replies=[CANNED_CLUSTERS])
+    out_path = tmp_path / "confusion-digest.md"
+
+    write_digest(session, llm, out_path)
+    first = out_path.read_text(encoding="utf-8")
+    write_digest(session, llm, out_path)
+    second = out_path.read_text(encoding="utf-8")
+
+    assert second == first  # overwritten, not appended
+    assert second.count("## Hotspots") == 1
