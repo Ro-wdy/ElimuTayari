@@ -265,7 +265,7 @@ def test_substrand_with_no_guidance_and_no_questions_ends_with_an_explanation(
     assert session.scalars(select(GeneratedTest)).all() == []
 
 
-def test_malformed_claude_reply_degrades_to_an_apologetic_sms(
+def test_malformed_claude_reply_degrades_to_an_honest_end_screen(
     make_client, migrated_database_url, sms_outbox, session
 ):
     seed_rows(migrated_database_url, *bank_rows())
@@ -274,12 +274,13 @@ def test_malformed_claude_reply_degrades_to_an_apologetic_sms(
 
     body = dial(client, "2*1*1*2")
 
+    # Generation is synchronous, so the END screen tells the truth itself:
+    # no false "on its way" promise, and no SMS spent on an apology.
     assert body.startswith("END "), "a bad reply must not drop the session"
-    assert len(sms_outbox.sent) == 1
-    to, message = sms_outbox.sent[0]
-    assert to == PHONE
-    assert "Sorry" in message
-    assert len(message) <= 160
+    assert "Sorry" in body
+    assert "on its way" not in body
+    assert len(body) <= 160 + len("END ")
+    assert sms_outbox.sent == []
     assert session.scalars(select(GeneratedTest)).all() == []
 
 
@@ -290,7 +291,7 @@ class ExplodingLlmClient:
         raise RuntimeError("api unreachable")
 
 
-def test_claude_api_error_degrades_to_an_apologetic_sms(
+def test_claude_api_error_degrades_to_an_honest_end_screen(
     make_client, migrated_database_url, sms_outbox, session
 ):
     seed_rows(migrated_database_url, *bank_rows())
@@ -299,8 +300,9 @@ def test_claude_api_error_degrades_to_an_apologetic_sms(
     body = dial(client, "2*1*1*2")
 
     assert body.startswith("END "), "an API error must not drop the session"
-    assert len(sms_outbox.sent) == 1
-    assert "Sorry" in sms_outbox.sent[0][1]
+    assert "Sorry" in body
+    assert "on its way" not in body
+    assert sms_outbox.sent == []
     assert session.scalars(select(GeneratedTest)).all() == []
 
 

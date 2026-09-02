@@ -106,12 +106,12 @@ def _complete_test_selection(
         db.add(Teacher(phone=phone))
     items = generate_test(llm_client, substrand, guidance, questions)
     if items is None:
-        sms_client.send(
-            phone,
-            f"Sorry, we could not prepare your {code} test right now. "
-            "Please try Get a test again later.",
+        # Generation is synchronous, so the END screen can tell the truth
+        # directly - no SMS spent on an apology.
+        return (
+            f"END Sorry, we could not prepare your {code} test right now. "
+            "Please try Get a test again later."
         )
-        return f"END {code} {substrand.title}: your test is on its way by SMS."
     body = f"Test {code} {substrand.title}\n" + "\n".join(
         f"{i}. {item}" for i, item in enumerate(items, start=1)
     )
