@@ -31,7 +31,9 @@ def create_app(
             settings.africastalking_sender_id,
         )
     if llm_client is None:
-        llm_client = AnthropicLlmClient(settings.anthropic_api_key)
+        llm_client = AnthropicLlmClient(
+            settings.anthropic_api_key, settings.anthropic_workspace_id
+        )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):

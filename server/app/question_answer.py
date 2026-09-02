@@ -13,8 +13,12 @@ webhook falls back to the plain confirmation - an answer is a bonus, never a
 gate on saving the question.
 """
 
+import logging
+
 from app.llm_client import LlmClient
 from app.models import Substrand
+
+logger = logging.getLogger(__name__)
 
 # ~3 SMS incl. the confirmation line and split_pack's part numbering.
 ANSWER_CHAR_BUDGET = 380
@@ -47,6 +51,8 @@ def compose_answer(
             ANSWER_SYSTEM_PROMPT.format(budget=ANSWER_CHAR_BUDGET), prompt
         ).strip()
     except Exception:
+        # Fall back to the plain confirmation, but never silently.
+        logger.exception("answer generation failed for %s", substrand.code)
         return None
     if not answer:
         return None

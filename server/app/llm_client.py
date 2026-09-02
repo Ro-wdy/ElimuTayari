@@ -21,15 +21,24 @@ class LlmClient(Protocol):
 
 
 class AnthropicLlmClient:
-    def __init__(self, api_key: str) -> None:
+    def __init__(self, api_key: str, workspace_id: str = "") -> None:
         self._api_key = api_key
+        self._workspace_id = workspace_id
         self._client = None
 
     def complete(self, system: str, prompt: str, max_tokens: int = 16000) -> str:
         if self._client is None:
             import anthropic
 
-            self._client = anthropic.Anthropic(api_key=self._api_key)
+            # Identity-linked keys must name the workspace they act in.
+            headers = (
+                {"anthropic-workspace-id": self._workspace_id}
+                if self._workspace_id
+                else None
+            )
+            self._client = anthropic.Anthropic(
+                api_key=self._api_key, default_headers=headers
+            )
         response = self._client.messages.create(
             model=MODEL,
             max_tokens=max_tokens,

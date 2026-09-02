@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     africastalking_sender_id: str = ""  # alphanumeric SMS sender ID, e.g. "Elimu"
     africastalking_shortcode: str = ""  # two-way SMS shortcode teachers text, e.g. "13302"
     anthropic_api_key: str = ""
+    # Required when the API key is identity-linked (console keys tied to a
+    # user identity); the id of the workspace requests act in (wrkspc_...).
+    anthropic_workspace_id: str = ""
 
 
 def get_settings() -> Settings:
