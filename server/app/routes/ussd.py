@@ -2,12 +2,19 @@
 
 AT posts a form-encoded session payload and expects a plain-text body whose
 first token is CON (keep the session open) or END (close it). Its field names
-are camelCase on the wire and aliased to snake_case here. Stub behaviour:
-the ticket #2 work replaces the menu body with real strand navigation.
+are camelCase on the wire and aliased to snake_case here. The menu itself
+lives in app.ussd_menu (a pure function of the accumulated text and the
+database); this route owns the side effects of a selection: recording the
+teaching session, updating the teacher, and sending the pack by SMS.
 """
 
-from fastapi import APIRouter, Form
+from fastapi import APIRouter, Depends, Form
 from fastapi.responses import PlainTextResponse
+from sqlalchemy.orm import Session
+
+from app.dependencies import get_session, get_sms_client
+from app.sms_client import SmsClient
+from app.ussd_menu import navigate
 
 router = APIRouter()
 
@@ -19,5 +26,8 @@ def ussd_callback(
     text: str = Form(default=""),
     service_code: str = Form(default="", alias="serviceCode"),
     network_code: str = Form(default="", alias="networkCode"),
+    db: Session = Depends(get_session),
+    sms_client: SmsClient = Depends(get_sms_client),
 ) -> str:
-    return "CON Welcome to ElimuTayari\n1. Mathematics"
+    outcome = navigate(db, text)
+    return outcome.render()
