@@ -1,0 +1,31 @@
+# ElimuTayari Grade 10 CBC Mathematics
+
+> Retrieval entry point for the Kenya CBC Senior School Mathematics knowledge base.
+
+This corpus currently covers **Grade 10 Core Mathematics** for the STEM pathway. It is a
+draft teaching companion built from the 2025 KICD Core Mathematics design family and the
+supplied `Core Mathematics Grade 10 - HI 2025.pdf` Drive source. Curriculum-derived claims
+and ElimuTayari-authored guidance are deliberately separated on every page.
+
+- Subject hub: [grade-10/core-mathematics/README.md](grade-10/core-mathematics/README.md)
+- Knowledge graph: [grade-10/core-mathematics/graph.json](grade-10/core-mathematics/graph.json)
+- Provenance: [grade-10/core-mathematics/source.md](grade-10/core-mathematics/source.md)
+- Page contract and authoring rules: [README.md](README.md)
+
+## Retrieval behavior
+
+Resolve a learner request to one `M-*` sub-strand before answering. Read that page's
+`Curriculum alignment`, `Knowledge graph`, and `Teacher pack` sections. Use `Worked example`
+and `SMS teaching pack` only after identifying the learner's level and requested format.
+Do not present draft support as official KICD wording. If two pages are needed, explain the
+graph relationship that connects them.
+
+## Corpus map
+
+- Numbers and Algebra: `M-ALG-01` Real Numbers; `M-ALG-02` Indices and Logarithms;
+  `M-ALG-03` Quadratic Expressions and Equations.
+- Measurements and Geometry: `M-GEO-01` Similarity and Enlargement; `M-GEO-02` Reflection
+  and Congruence; `M-GEO-03` Rotation; `M-GEO-04` Trigonometry 1; `M-GEO-05` Area of
+  Polygons; `M-GEO-06` Area of a Part of a Circle; `M-GEO-07` Surface Area and Volume of
+  Solids; `M-GEO-08` Vectors I; `M-GEO-09` Linear Motion.
+- Statistics and Probability: `M-STA-01` Statistics I; `M-STA-02` Probability 1.
