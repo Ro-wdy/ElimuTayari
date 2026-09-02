@@ -97,6 +97,56 @@ def test_q_upload_sends_confirmation_sms(seeded_client, sms_outbox):
     assert "M-ALG-02" in message
 
 
+def test_student_question_reply_carries_a_grounded_answer(
+    seeded_client, sms_outbox, llm_stub
+):
+    """A Q upload answers the question for the teacher, not just 'Saved'."""
+    llm_stub._replies = ["A negative exponent means divide: 2^-1 is 1/2."]
+
+    seeded_client.post(
+        "/sms/inbound",
+        data=at_payload("Q M-ALG-02 Why does a negative exponent give a fraction?"),
+    )
+
+    assert len(llm_stub.calls) == 1
+    _, prompt = llm_stub.calls[0]
+    assert "Why does a negative exponent give a fraction?" in prompt
+    assert "M-ALG-02" in prompt
+    joined = "\n".join(message for _, message in sms_outbox.sent)
+    assert "A negative exponent means divide: 2^-1 is 1/2." in joined
+    assert all(len(message) <= 160 for _, message in sms_outbox.sent)
+
+
+def test_teacher_test_item_gets_plain_confirmation_and_no_llm_call(
+    seeded_client, sms_outbox, llm_stub
+):
+    seeded_client.post(
+        "/sms/inbound", data=at_payload("T M-ALG-02 Simplify 2^3 x 2^-1")
+    )
+
+    assert llm_stub.calls == []
+    assert len(sms_outbox.sent) == 1
+    assert "Saved: test item" in sms_outbox.sent[0][1]
+
+
+def test_llm_failure_falls_back_to_plain_confirmation(
+    seeded_client, sms_outbox, llm_stub, session
+):
+    def explode(system, prompt, max_tokens=16000):
+        raise RuntimeError("api unreachable")
+
+    llm_stub.complete = explode
+
+    seeded_client.post(
+        "/sms/inbound", data=at_payload("Q M-ALG-02 Why do we swap the sign?")
+    )
+
+    # The question is saved and the teacher still hears back.
+    assert len(stored_questions(session)) == 1
+    assert len(sms_outbox.sent) == 1
+    assert "Saved: student question" in sms_outbox.sent[0][1]
+
+
 def test_first_contact_creates_teacher_row(seeded_client, session):
     assert session.get(Teacher, TEACHER_PHONE) is None
 
