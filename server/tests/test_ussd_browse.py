@@ -156,3 +156,18 @@ def test_session_recovers_after_an_invalid_input(seeded_client):
     assert body.startswith("CON ")
     assert "Invalid" not in body
     assert "1. Algebra" in body
+
+
+def test_every_screen_fits_within_the_ussd_character_limit(seeded_client):
+    """Walk every reachable menu screen, valid and re-prompted, and check the
+    ~160-character USSD limit holds for each rendered body."""
+    texts = ["", "9"]  # home, home re-prompt
+    texts += ["1", "1*9"]  # strands, strands re-prompt
+    for strand_index in range(1, 6):
+        texts.append(f"1*{strand_index}")  # each sub-strands screen
+        texts.append(f"1*{strand_index}*9")  # ...and its re-prompt
+        texts.append(f"1*{strand_index}*1")  # each END screen
+
+    for text in texts:
+        body = dial(seeded_client, text, session_id=f"ATUid_{text or 'root'}")
+        assert len(body) <= 160, f"screen for text={text!r} is {len(body)} chars"
