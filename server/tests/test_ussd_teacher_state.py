@@ -132,10 +132,25 @@ def test_post_class_prompt_quotes_the_question_upload_sms_format(seeded_client):
 
     body = dial(seeded_client, "4", session_id="ATUid_2")
 
+    # The destination is either the configured shortcode (from .env) or the
+    # generic wording; upload_screen's own tests pin both texts exactly.
     assert body.startswith("END ")
     assert "SMS" in body
-    assert "shortcode" in body
     assert body.endswith("Q <code> <question>")
+
+
+def test_upload_screen_names_the_configured_shortcode():
+    from app.ussd_menu import upload_screen
+
+    named = upload_screen("13302").render()
+    generic = upload_screen().render()
+
+    assert "to 13302." in named
+    assert "shortcode" not in named
+    assert "to this same shortcode." in generic
+    for body in (named, generic):
+        assert body.endswith("Q <code> <question>")
+        assert len(body) <= 160 + len("END ")
 
 
 def test_invalid_choice_on_returning_home_re_prompts_with_continue(seeded_client):

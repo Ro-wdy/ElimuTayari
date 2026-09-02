@@ -183,12 +183,14 @@ def test_areas_screen(db: Session, invalid: bool = False) -> Screen:
     return Screen(tuple(lines), invalid=invalid)
 
 
-def upload_screen() -> Screen:
+def upload_screen(shortcode: str = "") -> Screen:
     """The post-class prompt: how to upload student questions, ending with the
-    SMS format so the teacher never has to memorise it."""
+    SMS format so the teacher never has to memorise it. Names the configured
+    two-way shortcode when there is one."""
+    destination = shortcode if shortcode else "this same shortcode"
     return Screen(
         (
-            "After class, SMS your students' questions to this same shortcode.",
+            f"After class, SMS your students' questions to {destination}.",
             "Format: Q <code> <question>",
         ),
         end=True,
@@ -214,7 +216,7 @@ class _State:
 
 
 def navigate(
-    db: Session, text: str, phone: str = ""
+    db: Session, text: str, phone: str = "", shortcode: str = ""
 ) -> Screen | Selection | TestSelection:
     """Replay the accumulated USSD text into the current screen or selection.
 
@@ -223,6 +225,7 @@ def navigate(
     flag set, so the caller is re-prompted on the same screen and their next
     input still lands where they expect. The phone number picks the home
     screen variant: a returning teacher gets Continue/coverage/upload options.
+    shortcode, when configured, is named on the upload-instructions screen.
     """
     cont = continue_substrand(db, phone)
     state = _State()
@@ -230,7 +233,7 @@ def navigate(
     tokens = [t.strip() for t in text.split("*") if t.strip()]
     for token in tokens:
         invalid = not _apply(db, state, token, cont)
-    return _screen_for(db, state, invalid, cont, phone)
+    return _screen_for(db, state, invalid, cont, phone, shortcode)
 
 
 def _apply_returning_home(
@@ -304,7 +307,12 @@ def _apply(db: Session, state: _State, token: str, cont: Substrand | None) -> bo
 
 
 def _screen_for(
-    db: Session, state: _State, invalid: bool, cont: Substrand | None, phone: str
+    db: Session,
+    state: _State,
+    invalid: bool,
+    cont: Substrand | None,
+    phone: str,
+    shortcode: str = "",
 ) -> Screen | Selection | TestSelection:
     if state.selected is not None:
         if state.mode == "test":
@@ -313,7 +321,7 @@ def _screen_for(
     if state.info == "coverage":
         return coverage_screen(db, phone)
     if state.info == "upload":
-        return upload_screen()
+        return upload_screen(shortcode)
     if state.learning_area is None:
         if state.mode == "test":
             return test_areas_screen(db, invalid=invalid)

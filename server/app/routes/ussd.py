@@ -10,7 +10,7 @@ for a Get a test selection, generating the test through the LlmClient seam,
 sending it by SMS, and storing the tests row.
 """
 
-from fastapi import APIRouter, Depends, Form
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -36,6 +36,7 @@ router = APIRouter()
 
 @router.post("/ussd", response_class=PlainTextResponse)
 def ussd_callback(
+    request: Request,
     session_id: str = Form(..., alias="sessionId"),
     phone_number: str = Form(..., alias="phoneNumber"),
     text: str = Form(default=""),
@@ -45,7 +46,9 @@ def ussd_callback(
     sms_client: SmsClient = Depends(get_sms_client),
     llm_client: LlmClient = Depends(get_llm_client),
 ) -> str:
-    outcome = navigate(db, text, phone_number)
+    outcome = navigate(
+        db, text, phone_number, request.app.state.settings.africastalking_shortcode
+    )
     if isinstance(outcome, Selection):
         return _complete_selection(db, sms_client, phone_number, outcome.substrand)
     if isinstance(outcome, TestSelection):

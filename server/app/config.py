@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     africastalking_username: str = "sandbox"
     africastalking_api_key: str = ""
     africastalking_sender_id: str = ""  # alphanumeric SMS sender ID, e.g. "Elimu"
+    africastalking_shortcode: str = ""  # two-way SMS shortcode teachers text, e.g. "13302"
     anthropic_api_key: str = ""
 
 
