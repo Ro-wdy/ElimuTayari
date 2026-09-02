@@ -6,3 +6,4 @@ pydantic-settings==2.15.0
 python-dotenv==1.2.3
 python-multipart==0.0.32
 psycopg[binary]==3.3.5
+africastalking==1.2.9

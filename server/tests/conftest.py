@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db import create_db_engine, create_session_factory
 from app.main import create_app
+from app.sms_client import RecordingSmsClient
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 
@@ -63,8 +64,16 @@ def session(migrated_database_url: str) -> Iterator[Session]:
 
 
 @pytest.fixture
-def client(migrated_database_url: str) -> Iterator[TestClient]:
-    """A TestClient backed by the migrated throwaway database."""
-    app = create_app(database_url=migrated_database_url)
+def sms_outbox() -> RecordingSmsClient:
+    """Captures outbound SMS; assert on .sent instead of hitting Africa's Talking."""
+    return RecordingSmsClient()
+
+
+@pytest.fixture
+def client(
+    migrated_database_url: str, sms_outbox: RecordingSmsClient
+) -> Iterator[TestClient]:
+    """A TestClient backed by the migrated throwaway database and a recorded outbox."""
+    app = create_app(database_url=migrated_database_url, sms_client=sms_outbox)
     with TestClient(app) as test_client:
         yield test_client
