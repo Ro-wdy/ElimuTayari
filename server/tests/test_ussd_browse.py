@@ -161,8 +161,9 @@ def test_session_recovers_after_an_invalid_input(seeded_client):
 
 
 def test_every_screen_fits_within_the_ussd_character_limit(seeded_client):
-    """Walk every reachable menu screen, valid and re-prompted, and check the
-    ~160-character USSD limit holds for each rendered body."""
+    """Walk every reachable menu screen, valid and re-prompted, first-time and
+    returning-teacher variants, and check the ~160-character USSD limit holds
+    for each rendered body."""
     texts = ["", "9"]  # home, home re-prompt
     texts += ["1", "1*9"]  # strands, strands re-prompt
     for strand_index in range(1, 6):
@@ -171,6 +172,29 @@ def test_every_screen_fits_within_the_ussd_character_limit(seeded_client):
         for substrand_index in range(1, 4):
             texts.append(f"1*{strand_index}*{substrand_index}")  # each END screen
 
-    for text in texts:
-        body = dial(seeded_client, text, session_id=f"ATUid_{text or 'root'}")
+    # A selection END turns the caller into a returning teacher and changes
+    # their next home screen, so each first-time walk gets its own phone.
+    for i, text in enumerate(texts):
+        body = dial(
+            seeded_client,
+            text,
+            session_id=f"ATUid_{text or 'root'}",
+            phone=f"+2547000000{i:02d}",
+        )
+        assert len(body) <= 160, f"screen for text={text!r} is {len(body)} chars"
+
+    # Returning-teacher variants (issue #4), primed with the longest seeded
+    # sub-strand title so the Continue line is worst-case.
+    dial(seeded_client, "m-num-02", session_id="ATUid_prime")
+    returning_texts = [
+        "",  # home with Continue/coverage/upload
+        "9",  # ...and its re-prompt
+        "1",  # Continue END
+        "2",  # shifted browse into Mathematics
+        "2*9",  # ...and its re-prompt
+        "3",  # My coverage END
+        "4",  # Upload questions END
+    ]
+    for text in returning_texts:
+        body = dial(seeded_client, text, session_id=f"ATUid_r_{text or 'root'}")
         assert len(body) <= 160, f"screen for text={text!r} is {len(body)} chars"
