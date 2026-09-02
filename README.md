@@ -112,6 +112,21 @@ the simulator, and replies thread correctly when the sender ID is set to the sho
 
 Tests: `cd server && .venv/bin/python -m pytest`.
 
+### Sandbox configuration (current pilot)
+
+| Setting | Value |
+|---|---|
+| Africa's Talking app | Sandbox (`AFRICASTALKING_USERNAME=sandbox`) |
+| USSD service code | _fill in from the AT sandbox USSD channel (looks like `*384*NNNN#`)_ |
+| Two-way SMS shortcode | `13302` (teachers text `Q`/`T` uploads here) |
+| SMS sender ID | `13302` — replies from the shortcode itself, so they thread with the teacher's messages in one conversation. (`Elimu` is registered for production branding; note replies to an alphanumeric sender are impossible.) |
+| USSD callback | `<public-url>/ussd` |
+| Incoming-SMS callback | `<public-url>/sms/inbound` (SMS → SMS Callback URLs → Incoming Messages) |
+
+Sandbox quirks worth knowing: outbound SMS are delivered only inside the launched simulator
+(never to real phones), and only for numbers registered there; messages from an alphanumeric
+sender ID appear as a separate conversation thread from the shortcode's.
+
 ## Status
 
 Feature-complete MVP, verified end-to-end in the Africa's Talking sandbox. Open work:
