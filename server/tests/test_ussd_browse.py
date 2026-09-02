@@ -119,3 +119,16 @@ def test_second_selection_updates_last_substrand_without_duplicate_teacher(
     assert len(teachers) == 1
     assert teachers[0].last_substrand == "M-NUM-01"
     assert len(session.scalars(select(TeachingSession)).all()) == 2
+
+
+def test_direct_code_entry_at_home_screen_selects_the_substrand(
+    seeded_client, session, sms_outbox
+):
+    body = dial(seeded_client, "m-alg-02")
+
+    assert body.startswith("END ")
+    assert "M-ALG-02" in body
+    teaching = session.scalars(select(TeachingSession)).all()
+    assert [t.substrand_code for t in teaching] == ["M-ALG-02"]
+    assert sms_outbox.sent, "pack should be sent for direct code entry"
+    assert "M-ALG-02" in sms_outbox.sent[-1][1]

@@ -152,6 +152,10 @@ def _apply(db: Session, state: _State, token: str) -> bool:
         if area is not None:
             state.learning_area = area
             return True
+        direct = db.get(Substrand, token.upper())
+        if direct is not None:
+            state.selected = direct
+            return True
         return False
     if state.strand is None:
         strand = _pick(strands(db, state.learning_area), token)
