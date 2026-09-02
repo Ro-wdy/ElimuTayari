@@ -141,7 +141,8 @@ def test_post_class_prompt_quotes_the_question_upload_sms_format(seeded_client):
 def test_invalid_choice_on_returning_home_re_prompts_with_continue(seeded_client):
     teach(seeded_client)
 
-    body = dial(seeded_client, "5", session_id="ATUid_2")
+    # 5 is Get a test (issue #8), so 6 is the first invalid numeric choice.
+    body = dial(seeded_client, "6", session_id="ATUid_2")
 
     assert body.startswith("CON ")
     assert "Invalid" in body

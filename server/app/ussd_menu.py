@@ -21,12 +21,16 @@ Constraints honoured here:
   that leads with "1. Continue: <last sub-strand>" and appends "My coverage"
   and "Upload questions"; the extra lines are paid for by dropping the code
   hint, which the returning teacher has already seen (and every pack SMS ends
-  with its code). A first-time caller's home screen is unchanged.
+  with its code). A first-time caller's home screen is unchanged;
+- both home screens end with "Get a test": choosing it flips the replayed
+  state into test mode, which reuses the same area/strand/sub-strand
+  navigation but resolves a pick to a TestSelection instead of a Selection.
 
-Navigation resolves to either a Screen (rendered as a CON reply) or a
-Selection (the route records the teaching session, sends the pack and replies
-END): the side effects stay in the route, keeping this module read-only
-against the database.
+Navigation resolves to a Screen (rendered as a CON reply), a Selection (the
+route records the teaching session, sends the pack and replies END), or a
+TestSelection (the route generates and sends the test, then replies END):
+the side effects stay in the route, keeping this module read-only against
+the database.
 """
 
 from __future__ import annotations
@@ -59,8 +63,16 @@ class Screen:
 
 @dataclass(frozen=True)
 class Selection:
-    """The caller picked a sub-strand: the route turns this into side effects
-    and an END reply."""
+    """The caller picked a sub-strand to teach: the route turns this into
+    side effects (teaching session, pack SMS) and an END reply."""
+
+    substrand: Substrand
+
+
+@dataclass(frozen=True)
+class TestSelection:
+    """The caller picked a sub-strand under Get a test: the route generates
+    and sends the test, then replies END."""
 
     substrand: Substrand
 
@@ -111,7 +123,9 @@ def home_screen(
 ) -> Screen:
     lines = ["Welcome to ElimuTayari"]
     if cont is None:
-        lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
+        areas = learning_areas(db)
+        lines += [f"{i}. {area}" for i, area in enumerate(areas, start=1)]
+        lines.append(f"{len(areas) + 1}. Get a test")
         lines.append("Or enter a sub-strand code e.g. M-ALG-02")
         return Screen(tuple(lines), invalid=invalid)
     lines.append(f"1. Continue: {cont.title}")
@@ -119,6 +133,7 @@ def home_screen(
     lines += [f"{i}. {area}" for i, area in enumerate(areas, start=2)]
     lines.append(f"{len(areas) + 2}. My coverage")
     lines.append(f"{len(areas) + 3}. Upload questions")
+    lines.append(f"{len(areas) + 4}. Get a test")
     return Screen(tuple(lines), invalid=invalid)
 
 
@@ -161,6 +176,13 @@ def coverage_screen(db: Session, phone: str) -> Screen:
     return Screen(tuple(lines), end=True)
 
 
+def test_areas_screen(db: Session, invalid: bool = False) -> Screen:
+    """The Get a test entry point: pick a learning area (or type a code)."""
+    lines = ["Get a test for which sub-strand?"]
+    lines += [f"{i}. {area}" for i, area in enumerate(learning_areas(db), start=1)]
+    return Screen(tuple(lines), invalid=invalid)
+
+
 def upload_screen() -> Screen:
     """The post-class prompt: how to upload student questions, ending with the
     SMS format so the teacher never has to memorise it."""
@@ -188,9 +210,12 @@ class _State:
     strand: str | None = None
     selected: Substrand | None = None
     info: str | None = None  # "coverage" | "upload": terminal info screens
+    mode: str = "pack"  # "pack" | "test": what selecting a sub-strand means
 
 
-def navigate(db: Session, text: str, phone: str = "") -> Screen | Selection:
+def navigate(
+    db: Session, text: str, phone: str = ""
+) -> Screen | Selection | TestSelection:
     """Replay the accumulated USSD text into the current screen or selection.
 
     Each request re-derives the caller's position from the full text, one
@@ -226,6 +251,23 @@ def _apply_returning_home(
     if token == str(len(areas) + 3):
         state.info = "upload"
         return True
+    if token == str(len(areas) + 4):
+        state.mode = "test"
+        return True
+    direct = db.get(Substrand, token.upper())
+    if direct is not None:
+        state.selected = direct
+        return True
+    return False
+
+
+def _apply_area_or_code(db: Session, state: _State, token: str) -> bool:
+    """One token on a plain learning-areas screen: a numbered area, or a
+    sub-strand code jumping straight to that sub-strand."""
+    area = _pick(learning_areas(db), token)
+    if area is not None:
+        state.learning_area = area
+        return True
     direct = db.get(Substrand, token.upper())
     if direct is not None:
         state.selected = direct
@@ -238,17 +280,14 @@ def _apply(db: Session, state: _State, token: str, cont: Substrand | None) -> bo
     if state.selected is not None or state.info is not None:
         return False
     if state.learning_area is None:
+        if state.mode == "test":
+            return _apply_area_or_code(db, state, token)
         if cont is not None:
             return _apply_returning_home(db, state, token, cont)
-        area = _pick(learning_areas(db), token)
-        if area is not None:
-            state.learning_area = area
+        if token == str(len(learning_areas(db)) + 1):
+            state.mode = "test"
             return True
-        direct = db.get(Substrand, token.upper())
-        if direct is not None:
-            state.selected = direct
-            return True
-        return False
+        return _apply_area_or_code(db, state, token)
     if state.strand is None:
         strand = _pick(strands(db, state.learning_area), token)
         if strand is not None:
@@ -266,14 +305,18 @@ def _apply(db: Session, state: _State, token: str, cont: Substrand | None) -> bo
 
 def _screen_for(
     db: Session, state: _State, invalid: bool, cont: Substrand | None, phone: str
-) -> Screen | Selection:
+) -> Screen | Selection | TestSelection:
     if state.selected is not None:
+        if state.mode == "test":
+            return TestSelection(state.selected)
         return Selection(state.selected)
     if state.info == "coverage":
         return coverage_screen(db, phone)
     if state.info == "upload":
         return upload_screen()
     if state.learning_area is None:
+        if state.mode == "test":
+            return test_areas_screen(db, invalid=invalid)
         return home_screen(db, cont=cont, invalid=invalid)
     if state.strand is None:
         return strands_screen(db, state.learning_area, invalid=invalid)

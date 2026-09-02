@@ -166,11 +166,15 @@ def test_every_screen_fits_within_the_ussd_character_limit(seeded_client):
     for each rendered body."""
     texts = ["", "9"]  # home, home re-prompt
     texts += ["1", "1*9"]  # strands, strands re-prompt
+    texts += ["2", "2*9"]  # Get a test areas screen (issue #8), re-prompt
     for strand_index in range(1, 6):
         texts.append(f"1*{strand_index}")  # each sub-strands screen
         texts.append(f"1*{strand_index}*9")  # ...and its re-prompt
         for substrand_index in range(1, 4):
             texts.append(f"1*{strand_index}*{substrand_index}")  # each END screen
+            # Get a test END: with no guidance or bank seeded this is the
+            # nothing-to-generate-from message, per sub-strand title.
+            texts.append(f"2*1*{strand_index}*{substrand_index}")
 
     # A selection END turns the caller into a returning teacher and changes
     # their next home screen, so each first-time walk gets its own phone.
@@ -194,6 +198,8 @@ def test_every_screen_fits_within_the_ussd_character_limit(seeded_client):
         "2*9",  # ...and its re-prompt
         "3",  # My coverage END
         "4",  # Upload questions END
+        "5",  # Get a test areas screen (issue #8)
+        "5*9",  # ...and its re-prompt
     ]
     for text in returning_texts:
         body = dial(seeded_client, text, session_id=f"ATUid_r_{text or 'root'}")
