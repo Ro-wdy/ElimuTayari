@@ -11,12 +11,27 @@ No network, no credentials: Claude is always the stub, the database is the
 migrated throwaway SQLite file from conftest.
 """
 
+import json
 from datetime import datetime, timezone
 
-from app.analytics import compute_hotspots
+from app.analytics import cluster_questions, compute_hotspots
+from app.llm_client import StubLlmClient
 from app.models import Question, Substrand, Teacher, TeachingSession
 
 TEACHER_PHONE = "+254711223344"
+
+SIGN_QUESTIONS = [
+    "Why do we swap the sign when dividing by a negative?",
+    "What happens to the inequality when I multiply by -1?",
+    "How do I make y the subject of x = 2y + 1?",
+]
+
+CANNED_CLUSTERS = json.dumps(
+    [
+        {"theme": "Sign changes with negatives", "question_indexes": [1, 2]},
+        {"theme": "Changing the subject of a formula", "question_indexes": [3]},
+    ]
+)
 
 
 def seed_substrand(session, code: str, title: str) -> None:
@@ -166,3 +181,70 @@ def test_equal_ratios_break_ties_by_question_count_then_code(session):
         "M-ALG-01",  # ties with M-ALG-03, earlier code
         "M-ALG-03",
     ]
+
+
+def test_cluster_questions_names_themes_from_json_reply():
+    llm = StubLlmClient(replies=[CANNED_CLUSTERS])
+
+    result = cluster_questions(llm, "Formulae and Variations", SIGN_QUESTIONS)
+
+    assert result.raw_reply is None
+    assert [t.theme for t in result.themes] == [
+        "Sign changes with negatives",
+        "Changing the subject of a formula",
+    ]
+    assert result.themes[0].questions == SIGN_QUESTIONS[:2]
+    assert result.themes[1].questions == [SIGN_QUESTIONS[2]]
+
+
+def test_cluster_prompt_numbers_questions_and_names_the_substrand():
+    llm = StubLlmClient(replies=[CANNED_CLUSTERS])
+
+    cluster_questions(llm, "Formulae and Variations", SIGN_QUESTIONS)
+
+    (system, prompt) = llm.calls[0]
+    assert "Formulae and Variations" in prompt
+    for i, text in enumerate(SIGN_QUESTIONS, start=1):
+        assert f"{i}. {text}" in prompt
+    assert "JSON" in system or "JSON" in prompt
+
+
+def test_cluster_reply_wrapped_in_code_fence_still_parses():
+    llm = StubLlmClient(replies=[f"```json\n{CANNED_CLUSTERS}\n```"])
+
+    result = cluster_questions(llm, "Formulae and Variations", SIGN_QUESTIONS)
+
+    assert result.raw_reply is None
+    assert len(result.themes) == 2
+
+
+def test_malformed_cluster_reply_falls_back_to_raw_text():
+    reply = "Students seem confused about signs, mostly."
+    llm = StubLlmClient(replies=[reply])
+
+    result = cluster_questions(llm, "Formulae and Variations", SIGN_QUESTIONS)
+
+    assert result.themes == []
+    assert result.raw_reply == reply
+
+
+def test_wrong_shape_json_reply_falls_back_to_raw_text():
+    reply = json.dumps({"themes": ["signs"]})
+    llm = StubLlmClient(replies=[reply])
+
+    result = cluster_questions(llm, "Formulae and Variations", SIGN_QUESTIONS)
+
+    assert result.themes == []
+    assert result.raw_reply == reply
+
+
+def test_out_of_range_question_indexes_are_ignored():
+    reply = json.dumps(
+        [{"theme": "Sign changes", "question_indexes": [1, 99, 0, -2]}]
+    )
+    llm = StubLlmClient(replies=[reply])
+
+    result = cluster_questions(llm, "Formulae and Variations", SIGN_QUESTIONS)
+
+    assert result.raw_reply is None
+    assert result.themes[0].questions == [SIGN_QUESTIONS[0]]
