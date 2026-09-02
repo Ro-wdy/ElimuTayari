@@ -11,7 +11,10 @@ from typing import Iterator
 
 import pytest
 
+from sqlalchemy import select
+
 from app.db import create_db_engine, create_session_factory
+from app.models import Teacher, TeachingSession
 from app.seed import seed_placeholder_content
 
 PHONE = "+254711223344"
@@ -72,3 +75,33 @@ def test_choosing_a_strand_lists_its_substrands(seeded_client):
     assert "1. Matrices" in body
     assert "2. Formulae and Variations" in body
     assert "3. Quadratic Equations and Expressions" in body
+
+
+def test_selecting_a_substrand_ends_session_and_records_teaching(
+    seeded_client, session
+):
+    # Mathematics -> Algebra -> Formulae and Variations (M-ALG-02)
+    body = dial(seeded_client, "1*1*2")
+
+    assert body.startswith("END ")
+    assert "SMS" in body
+
+    teaching = session.scalars(select(TeachingSession)).all()
+    assert [(t.teacher_phone, t.substrand_code) for t in teaching] == [
+        (PHONE, "M-ALG-02")
+    ]
+    teacher = session.get(Teacher, PHONE)
+    assert teacher is not None
+    assert teacher.last_substrand == "M-ALG-02"
+
+
+def test_second_selection_updates_last_substrand_without_duplicate_teacher(
+    seeded_client, session
+):
+    dial(seeded_client, "1*1*2", session_id="ATUid_1")
+    dial(seeded_client, "1*5*1", session_id="ATUid_2")  # Numbers -> M-NUM-01
+
+    teachers = session.scalars(select(Teacher)).all()
+    assert len(teachers) == 1
+    assert teachers[0].last_substrand == "M-NUM-01"
+    assert len(session.scalars(select(TeachingSession)).all()) == 2

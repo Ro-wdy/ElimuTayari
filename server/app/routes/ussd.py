@@ -13,8 +13,9 @@ from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_session, get_sms_client
+from app.models import Substrand, Teacher, TeachingSession
 from app.sms_client import SmsClient
-from app.ussd_menu import navigate
+from app.ussd_menu import Selection, navigate
 
 router = APIRouter()
 
@@ -30,4 +31,20 @@ def ussd_callback(
     sms_client: SmsClient = Depends(get_sms_client),
 ) -> str:
     outcome = navigate(db, text)
+    if isinstance(outcome, Selection):
+        return _complete_selection(db, phone_number, outcome.substrand)
     return outcome.render()
+
+
+def _complete_selection(db: Session, phone: str, substrand: Substrand) -> str:
+    """Record the teaching session, remember the teacher's pick, reply END."""
+    teacher = db.get(Teacher, phone)
+    if teacher is None:
+        teacher = Teacher(phone=phone)
+        db.add(teacher)
+    teacher.last_substrand = substrand.code
+    db.add(TeachingSession(teacher_phone=phone, substrand_code=substrand.code))
+    return (
+        f"END {substrand.code} {substrand.title}: "
+        "your teaching pack is on its way by SMS."
+    )

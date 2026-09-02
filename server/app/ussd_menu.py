@@ -25,7 +25,7 @@ against the database.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -126,6 +126,7 @@ class _State:
 
     learning_area: str | None = None
     strand: str | None = None
+    selected: Substrand | None = None
 
 
 def navigate(db: Session, text: str) -> Screen | Selection:
@@ -158,10 +159,18 @@ def _apply(db: Session, state: _State, token: str) -> bool:
             state.strand = strand
             return True
         return False
+    if state.selected is None:
+        options = substrands(db, state.learning_area, state.strand)
+        if token.isdigit() and 1 <= int(token) <= len(options):
+            state.selected = options[int(token) - 1]
+            return True
+        return False
     return False
 
 
-def _screen_for(db: Session, state: _State, invalid: bool) -> Screen:
+def _screen_for(db: Session, state: _State, invalid: bool) -> Screen | Selection:
+    if state.selected is not None:
+        return Selection(state.selected)
     if state.learning_area is None:
         return home_screen(db, invalid=invalid)
     if state.strand is None:
