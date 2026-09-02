@@ -1,13 +1,16 @@
 # Grade 10 Core Mathematics
 
 Use [README.md](README.md) for the learning-area overview, [graph.json](graph.json) for
-stable IDs and relationships, and [source.md](source.md) for provenance. The 14 sub-strand
-pages live in [sub-strands](sub-strands/).
+stable IDs and relationships, and [source.md](source.md) for provenance. The three
+teacher-facing strand pages live in [strands](strands/); the 14 sub-strand pages live in
+[sub-strands](sub-strands/).
 
 For the supplied HI source variant, also load [accessibility-hi.md](accessibility-hi.md)
 and use its visual-first response rules. Do not invent Kenyan Sign Language terminology.
 
-Answer with one sub-strand's terminology at a time. Cite the `M-*` ID in teacher packs,
+When answering a strand lookup, show the official reference and title first (for example,
+“Strand 1.0: Numbers and Algebra”), then show the internal `M-ALG` alias if useful. Answer
+with one sub-strand's terminology at a time. Cite the `M-*` ID in teacher packs,
 test-generation requests, SMS commands, and analytics. The pages are `draft-human-review`:
 KICD alignment is paraphrased and examples/activities are ElimuTayari support, not official
 KICD text.

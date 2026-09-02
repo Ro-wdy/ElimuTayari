@@ -21,6 +21,7 @@
       "type": "strand",
       "title": "Numbers and Algebra",
       "curriculum_ref": "1.0",
+      "path": "strands/M-ALG-numbers-and-algebra.md",
       "properties": {"status": "draft-human-review"}
     },
     {
@@ -28,6 +29,7 @@
       "type": "strand",
       "title": "Measurements and Geometry",
       "curriculum_ref": "2.0",
+      "path": "strands/M-GEO-measurements-and-geometry.md",
       "properties": {"status": "draft-human-review"}
     },
     {
@@ -35,6 +37,7 @@
       "type": "strand",
       "title": "Statistics and Probability",
       "curriculum_ref": "3.0",
+      "path": "strands/M-STA-statistics-and-probability.md",
       "properties": {"status": "draft-human-review"}
     },
     {

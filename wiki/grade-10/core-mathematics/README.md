@@ -24,11 +24,11 @@ Kenyan homes, schools, roads, farms, businesses, and future technical careers.
 
 The design has three strands and fourteen sub-strands:
 
-| Strand | Sub-strands | IDs |
+| Official strand | Internal wiki ID | Sub-strands |
 | --- | --- | --- |
-| Numbers and Algebra | Real Numbers; Indices and Logarithms; Quadratic Expressions and Equations | `M-ALG-01` to `M-ALG-03` |
-| Measurements and Geometry | Similarity and Enlargement; Reflection and Congruence; Rotation; Trigonometry 1; Area of Polygons; Area of a Part of a Circle; Surface Area and Volume of Solids; Vectors I; Linear Motion | `M-GEO-01` to `M-GEO-09` |
-| Statistics and Probability | Statistics I; Probability 1 | `M-STA-01` to `M-STA-02` |
+| [1.0 Numbers and Algebra](strands/M-ALG-numbers-and-algebra.md) | `M-ALG` | Real Numbers; Indices and Logarithms; Quadratic Expressions and Equations (`M-ALG-01` to `M-ALG-03`) |
+| [2.0 Measurements and Geometry](strands/M-GEO-measurements-and-geometry.md) | `M-GEO` | Similarity and Enlargement; Reflection and Congruence; Rotation; Trigonometry 1; Area of Polygons; Area of a Part of a Circle; Surface Area and Volume of Solids; Vectors I; Linear Motion (`M-GEO-01` to `M-GEO-09`) |
+| [3.0 Statistics and Probability](strands/M-STA-statistics-and-probability.md) | `M-STA` | Statistics I; Probability 1 (`M-STA-01` to `M-STA-02`) |
 
 Use [graph.json](./graph.json) when a system needs the complete node and edge list. Use the
 [source record](./source.md) when a response needs provenance or a version check.
